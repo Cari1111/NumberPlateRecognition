@@ -162,3 +162,7 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
+/safe_video/number_plate_recognition/Dataset
+/safe_video/number_plate_recognition/runs/detect
+/safe_video/number_plate_recognition/datasets
+/safe_video/number_plate_recognition/traindata
