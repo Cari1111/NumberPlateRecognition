@@ -24,4 +24,9 @@ conda env export > environment.yml
 To update your conda environment with the new file use:
 ```
 conda env update --file environment.yml --prune
-``` 
+```
+
+## Resources
+
+### Datasets
+- [PapersWithCode](https://paperswithcode.com/datasets?task=object-detection&mod=images&page=1)
