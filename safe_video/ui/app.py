@@ -41,7 +41,7 @@ class UI_App:
         for name in names:
             img = self.file_manager[name]
             img.preview_container = PreviewImage(img.id, img.get_path_preview(), self.switch_image_callback)
-            self.preview_bar.controls.append(img.preview_container)
+            self.preview_bar.controls.append(ft.Row([ft.Checkbox(), img.preview_container]))
         self.switch_image(names[-1])
         self.page.update()
 
@@ -112,7 +112,7 @@ class UI_App:
                 ft.IconButton(on_click=self.settings_callback, icon=ft.icons.SETTINGS)
             ]), padding=10, bgcolor=self.colors.dark),
             ft.Row([
-                ft.Container(self.preview_bar, bgcolor=self.colors.normal, padding=10, width=70),
+                ft.Container(self.preview_bar, bgcolor=self.colors.normal, padding=10, width=120),
                 self.image_container,
                 ft.Container(ft.Column([
                     ft.ExpansionTile(
