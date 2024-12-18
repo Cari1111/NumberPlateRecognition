@@ -3,6 +3,7 @@ from .utils import *
 from PIL import Image
 from pathlib import Path
 from copy import deepcopy
+from IPython.display import clear_output
 
 import os
 from ultralytics import YOLO
@@ -14,6 +15,7 @@ Img = str|Path|int|Image.Image|list|tuple|np.ndarray|torch.Tensor
 
 class ObjectDetection():
     def __init__(self, file_path: str = "."):
+        self.result = None
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.file_path = file_path
         self.models: list[YOLO] = []
@@ -55,6 +57,7 @@ class ObjectDetection():
                 self.result = res
             else:
                 self.result = merge_results(self.result, res)
+        if not verbose: clear_output()
         return self.result
 
 
