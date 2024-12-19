@@ -7,10 +7,11 @@ from .helper_classes import FileManger
 CACHE_PATH = "safe_video/upload_cache/"
 
 DarkColors = ColorPalette(
-    normal = "#1a1e26",
-    light = "#232833",
-    dark = "#101217",
+    normal="#1a1e26",
+    light="#232833",
+    dark="#101217",
 )
+
 
 class UI_App:
     def __init__(self):
@@ -49,7 +50,7 @@ class UI_App:
         if self.selected_img is not None:
             if id == self.selected_img: return
             self.file_manager[self.selected_img].selected(False)
-        if id not in self.file_manager: # image was probably deleted
+        if id not in self.file_manager:  # image was probably deleted
             self.selected_img = None
             self.image_container.content = None
         else:
@@ -79,6 +80,7 @@ class UI_App:
     def close_callback(self, info: ft.ControlEvent):
         if self.selected_img is None: return
         img = self.file_manager[self.selected_img]
+
         def save_callback():
             self.file_picker_export.save_file(file_name=img.get_orig_name())
             img.has_to_be_closed = True
@@ -104,8 +106,10 @@ class UI_App:
         page.add(
             ft.Container(ft.Row([
                 ft.Container(content=ft.IconButton(ft.icons.BLUR_ON, focus_color=self.colors.dark), width=50),
-                ft.ElevatedButton("Open Image", on_click=lambda _: self.file_picker_open.pick_files(file_type=ft.FilePickerFileType.IMAGE, allow_multiple=True), icon=ft.icons.FOLDER_OPEN),
-                ft.ElevatedButton("Export file", on_click=lambda _: self.file_picker_export.save_file(file_name=self.file_manager[self.selected_img].get_orig_name()), icon=ft.icons.SAVE_ALT),
+                ft.ElevatedButton("Open Image", on_click=lambda _: self.file_picker_open.pick_files(
+                    file_type=ft.FilePickerFileType.IMAGE, allow_multiple=True), icon=ft.icons.FOLDER_OPEN),
+                ft.ElevatedButton("Export file", on_click=lambda _: self.file_picker_export.save_file(
+                    file_name=self.file_manager[self.selected_img].get_orig_name()), icon=ft.icons.SAVE_ALT),
                 ft.ElevatedButton("Close file", on_click=self.close_callback, icon=ft.icons.DELETE),
                 ft.ElevatedButton("Blur all", on_click=lambda _: self.blur_callback(), icon=ft.icons.PLAY_ARROW),
                 ft.Row([], expand=True),
@@ -120,13 +124,13 @@ class UI_App:
                         leading=ft.Checkbox(),
                         shape=ft.StadiumBorder(),
                         controls=[ft.Text("options")]
-                        ),
+                    ),
                     ft.ExpansionTile(
                         title=ft.Text("Faces"),
                         leading=ft.Checkbox(),
                         shape=ft.StadiumBorder(),
                         controls=[ft.Text("options")]
-                        ),
+                    ),
                 ], expand=True), bgcolor=self.colors.normal, width=300, expand=0.5, alignment=ft.alignment.top_left),
             ], expand=True),
         )

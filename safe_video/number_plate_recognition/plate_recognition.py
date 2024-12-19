@@ -11,7 +11,8 @@ import cv2
 from ultralytics.engine.results import Boxes, Results
 import numpy as np
 import torch
-Img = str|Path|int|Image.Image|list|tuple|np.ndarray|torch.Tensor
+Img = str | Path | int | Image.Image | list | tuple | np.ndarray | torch.Tensor
+
 
 class ObjectDetection():
     def __init__(self, file_path: str = "."):
@@ -19,18 +20,16 @@ class ObjectDetection():
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.file_path = file_path
         self.models: list[YOLO] = []
-        self.add_model(os.path.join(os.path.abspath("."),"models","first10ktrain","weights","best.pt"))
-        self.add_model(os.path.join(os.path.abspath("."),"models","yolo11n.pt"))
+        self.add_model(os.path.join(os.path.abspath("."), "models", "first10ktrain", "weights", "best.pt"))
+        self.add_model(os.path.join(os.path.abspath("."), "models", "yolo11n.pt"))
         self.conf_interval = 0.5
-
 
     def add_model(self, path: str):
         model = YOLO(path, task="detect")
         model.to(self.device)
         self.models.append(model)
 
-
-    def analyze(self, image: Img, classes: list[str]|str, verbose = False) -> Results:
+    def analyze(self, image: Img, classes: list[str] | str, verbose=False) -> Results:
         if type(classes) is str: classes = [classes]
         # select with what model which classes are detected
         mdl_clss: dict[int, list] = {}
@@ -50,9 +49,9 @@ class ObjectDetection():
         if len(classes) > 0: print(f"Could not find models for the following classes: {classes}")
         # detect and combine results
         self.result = None
-        for mdl,clss in mdl_clss.items():
+        for mdl, clss in mdl_clss.items():
             if len(clss) == 0: continue
-            res = self.models[mdl](image, classes = clss)[0].cpu().numpy()
+            res = self.models[mdl](image, classes=clss)[0].cpu().numpy()
             if self.result is None:
                 self.result = res
             else:
@@ -60,27 +59,23 @@ class ObjectDetection():
         if not verbose: clear_output()
         return self.result
 
-
     def get_classes(self) -> list[str]: return np.concatenate([list(m.names.values()) for m in self.models])
 
-
-    def blur_image(self, image: Img, results: Results, classes: list[str]|str) -> np.ndarray:
+    def blur_image(self, image: Img, results: Results, classes: list[str] | str) -> np.ndarray:
         if type(classes) is str: classes = [classes]
         image = image.copy()
         for box, cls in zip(results.boxes.xyxy, results.boxes.cls):
             if not results.names[cls] in classes: continue
             cropped_img = self.crop_image(image, box)
-            blurred_img = cv2.GaussianBlur(cropped_img, (25,25),0)
-            x1,y1,x2,y2 = box.astype("int")
-            image[y1:y2,x1:x2] = blurred_img
+            blurred_img = cv2.GaussianBlur(cropped_img, (25, 25), 0)
+            x1, y1, x2, y2 = box.astype("int")
+            image[y1:y2, x1:x2] = blurred_img
         return image
-
 
     def crop_image(self, image: Img, xyxy: np.ndarray) -> np.ndarray:
         assert len(xyxy) == 4, "Array must have exactly 4 entries"
-        x1,y1,x2,y2 = xyxy.astype("int")
-        return image[y1:y2,x1:x2]
-
+        x1, y1, x2, y2 = xyxy.astype("int")
+        return image[y1:y2, x1:x2]
 
     def chained_detection(self, image: Img, cls1: str, cls2: str) -> Results:
         cls1_results = self.analyze(image, cls1)

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from .components import PreviewImage
 
+
 @dataclass
 class Video:
     cache_path: str
@@ -10,7 +11,7 @@ class Video:
 
 @dataclass
 class Image:
-    id: str # name + number to make it unique
+    id: str  # name + number to make it unique
     cache_path: str
     name: str
     orig_file: str
