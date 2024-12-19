@@ -11,124 +11,124 @@ import cv2
 from ultralytics.engine.results import Boxes, Results
 import numpy as np
 import torch
-Img = str | Path | int | Image.Image | list | tuple | np.ndarray | torch.Tensor
+ImageInput = str | Path | int | Image.Image | list | tuple | np.ndarray | torch.Tensor
 
 
 class ObjectDetection():
-    def __init__(self, file_path: str = ".", conf=0.5, iou=0.7, vid_stride=1, stream_buffer=False):
+    def __init__(self, file_path: str = ".", confidence_threshold=0.5, iou_threshold=0.7, video_stride=1, enable_stream_buffer=False):
         self.result = None
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.file_path = file_path
         self.models: list[YOLO] = []
-        self.add_model(os.path.join(os.path.abspath("."), "models", "first10ktrain", "weights", "best.pt"))
-        self.add_model(os.path.join(os.path.abspath("."), "models", "yolo11n.pt"))
+        self.load_model(os.path.join(os.path.abspath("."), "models", "first10ktrain", "weights", "best.pt"))
+        self.load_model(os.path.join(os.path.abspath("."), "models", "yolo11n.pt"))
 
-        # TODO change with conf
-        self.conf_interval = conf
-        self.iou = iou
-        self.vid_stride = vid_stride
-        self.stream_buffer = stream_buffer
+        self.confidence_threshold = confidence_threshold
+        self.iou_threshold = iou_threshold
+        self.video_stride = video_stride
+        self.enable_stream_buffer = enable_stream_buffer
 
-    def add_model(self, path: str):
+    def load_model(self, path: str):
         model = YOLO(path, task="detect")
         model.to(self.device)
         self.models.append(model)
 
-    def choose_model(self, classes: list[str], verbose=False) -> dict[int, list[int]]:
-        # select with what model which classes are detected
-        mdl_clss: dict[int, list] = {}
-        for mdl_idx in range(len(self.models)):
-            clss = self.models[mdl_idx].names
-            mdl_clss[mdl_idx] = []
-            for cls in classes.copy():
-                if len(classes) == 0: break
+    def map_classes_to_models(self, target_classes: list[str], verbose=False) -> dict[int, list[int]]:
+        # select the rigth model for each class
+        model_class_dict: dict[int, list] = {}
+        for model_idx in range(len(self.models)):
+            model_classes = self.models[model_idx].names
+            model_class_dict[model_idx] = []
+            for target_class in target_classes.copy():
+                if len(target_classes) == 0: break
                 try:
-                    cls_idx = get_key(clss, cls)
-                    classes.remove(cls)
-                    mdl_clss[mdl_idx].append(cls_idx)
+                    class_index = find_key_by_value(model_classes, target_class)
+                    target_classes.remove(target_class)
+                    model_class_dict[model_idx].append(class_index)
                 except Exception as e:
                     if verbose: print(e)
             else: continue
             break
-        if len(classes) > 0: print(f"Could not find models for the following classes: {classes}")
-        return mdl_clss
+        if len(target_classes) > 0: print(f"Could not find models for the following classes: {target_classes}")
+        return model_class_dict
 
-    def analyze(self, image: Img, mdl_clss: dict[int, list[int]], verbose=False) -> Results:
+    def detect_objects(self, image: ImageInput, model_class_dict: dict[int, list[int]], verbose=False) -> Results:
         # detect and combine results
         self.result = None
-        for mdl, clss in mdl_clss.items():
-            if len(clss) == 0: continue
-            res = self.models[mdl](image, classes=clss)[0].cpu().numpy()
-            if self.result is None: self.result = res
-            else: self.result = merge_results(self.result, res)
+        for model_idx, class_indices in model_class_dict.items():
+            if len(class_indices) == 0: continue
+            detection_results = self.models[model_idx](image, classes=class_indices)[0].cpu().numpy()
+            if self.result is None: self.result = detection_results
+            else: self.result = merge_results(self.result, detection_results)
         if not verbose: clear_output()
         return self.result
 
-    def get_classes(self) -> list[str]: return np.concatenate([list(m.names.values()) for m in self.models])
+    def get_classes(self) -> list[str]: return np.concatenate([list(model.names.values()) for model in self.models])
 
-    def blur_image(self, image: Img, results: Results, classes: list[str] | str) -> np.ndarray:
-        if type(classes) is str: classes = [classes]
-        image = image.copy()
-        for box, cls in zip(results.boxes.xyxy, results.boxes.cls):
-            if results.names[cls] not in classes: continue
-            cropped_img = self.crop_image(image, box)
-            blurred_img = cv2.GaussianBlur(cropped_img, (25, 25), 0)
-            x1, y1, x2, y2 = box.astype("int")
-            image[y1:y2, x1:x2] = blurred_img
-        return image
+    def apply_blur_to_image(self, image: ImageInput, detection_results: Results, target_classes: list[str] | str) -> np.ndarray:
+        if type(target_classes) is str: target_classes = [target_classes]
+        image_copy = image.copy()
+        for bbox, class_id in zip(detection_results.boxes.xyxy, detection_results.boxes.cls):
+            if detection_results.names[class_id] not in target_classes: continue
+            cropped_region = self.crop_image(image_copy, bbox)
+            blurred_region = cv2.GaussianBlur(cropped_region, (25, 25), 0)
+            x1, y1, x2, y2 = bbox.astype("int")
+            image_copy[y1:y2, x1:x2] = blurred_region
 
-    def crop_image(self, image: Img, xyxy: np.ndarray) -> np.ndarray:
-        assert len(xyxy) == 4, "Array must have exactly 4 entries"
-        x1, y1, x2, y2 = xyxy.astype("int")
+        return image_copy
+
+    def crop_image(self, image: ImageInput, bbox: np.ndarray) -> np.ndarray:
+        assert len(bbox) == 4, "Array must have exactly 4 entries"
+        x1, y1, x2, y2 = bbox.astype("int")
         return image[y1:y2, x1:x2]
 
-    def chained_detection(self, image: Img, mdl_clss1: dict[int, list[int]], mdl_clss2: dict[int, list[int]], verbose = False) -> Results:
-        cls1_results = self.analyze(image, mdl_clss1, verbose)
-        merged_results = deepcopy(cls1_results)
+    def chain_detection(self, image: ImageInput, primary_class_dict: dict[int, list[int]], secondary_class_dict: dict[int, list[int]], verbose=False) -> Results:
+        primary_results = self.detect_objects(image, primary_class_dict, verbose)
+        merged_results = deepcopy(primary_results)
 
-        for box in cls1_results.boxes.xyxy:
-            x1, y1, _, _ = box.astype("int")
-            cropped_image = self.crop_image(image, box)
+        for bbox in primary_results.boxes.xyxy:
+            x1, y1, _, _ = bbox.astype("int")
+            cropped_image = self.crop_image(image, bbox)
 
-            cls2_results = self.analyze(cropped_image, mdl_clss2)
-            if cls2_results.boxes.data.size > 0:
-                cls2_results.boxes.data[:, :4] += [x1, y1, x1, y1]
+            secondary_results = self.detect_objects(cropped_image, secondary_class_dict, verbose)
+            if secondary_results.boxes.data.size > 0:
+                secondary_results.boxes.data[:, :4] += [x1, y1, x1, y1]
 
-            merged_results = merge_results(merged_results, cls2_results)
+            merged_results = merge_results(merged_results, secondary_results)
         self.result = merged_results
         return self.result
 
-    def detect_image(self, image: Img, class1: list[str] | str, class2: list[str] | str = None, verbose = False) -> Results:
+    def process_image(self, image: ImageInput, primary_classes: list[str] | str, secondary_classes: list[str] | str = None, verbose=False) -> Results:
 
-        if type(class1) is str: class1 = [class1]
-        if type(class2) is str: class2 = [class2]
+        if type(primary_classes) is str: primary_classes = [primary_classes]
+        if type(secondary_classes) is str: secondary_classes = [secondary_classes]
 
-        if class2 is None:
-            mdl_clss = self.choose_model(class1, False)
-            detections = self.analyze(image, mdl_clss, verbose)
+        if secondary_classes is None:
+            model_class_dict = self.map_classes_to_models(primary_classes, False)
+            return self.detect_objects(image, model_class_dict, verbose)
         else:
-            mdl_clss1 = self.choose_model(class1, False)
-            mdl_clss2 = self.choose_model(class2, False)
-            detections = self.chained_detection(image, mdl_clss1, mdl_clss2, verbose)
+            primary_mapping = self.map_classes_to_models(primary_classes, False)
+            secondary_mapping = self.map_classes_to_models(secondary_classes, False)
+            return self.chain_detection(image, primary_mapping, secondary_mapping, verbose)
 
-        return detections
+    def process_video(self, video_path: str, primary_classes: list[str] | str, secondary_classes: list[str] | str = None, verbose=False):
 
-    def detect_video(self, video_path: str, class1: list[str] | str, class2: list[str] | str = None, vid_stride: int = 1, verbose=False):
+        if type(primary_classes) is str: primary_classes = [primary_classes]
+        if type(secondary_classes) is str: secondary_classes = [secondary_classes]
 
-        if type(class1) is str: class1 = [class1]
-        if type(class2) is str: class2 = [class2]
-
-        frame_count = 0
-        if class2 is None:
-            mdl_clss1 = self.choose_model(class1, verbose)
+        frame_counter = 0
+        if secondary_classes is None:
+            primary_mapping = self.map_classes_to_models(primary_classes, verbose)
             cap = cv2.VideoCapture(video_path)
             while cap.isOpened():
                 success, frame = cap.read()
+
                 if not success: break
-                if frame_count % vid_stride != 0:
-                    frame_count += 1
+                if frame_counter % self.video_stride != 0:
+                    frame_counter += 1
                     continue
-                detections = self.analyze(frame, mdl_clss1, verbose)
+
+                detections = self.detect_objects(frame, primary_mapping, verbose)
 
                 # TODO delete later is for testing
                 frame = detections.plot()
@@ -136,16 +136,16 @@ class ObjectDetection():
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
         else:
-            mdl_clss1 = self.choose_model(class1, verbose)
-            mdl_clss2 = self.choose_model(class2, verbose)
+            primary_mapping = self.map_classes_to_models(primary_classes, verbose)
+            secondary_mapping = self.map_classes_to_models(secondary_classes, verbose)
             cap = cv2.VideoCapture(video_path)
             while cap.isOpened():
                 success, frame = cap.read()
                 if not success: break
-                if frame_count % vid_stride != 0:
-                    frame_count += 1
+                if frame_counter % self.video_stride != 0:
+                    frame_counter += 1
                     continue
-                detections = self.chained_detection(frame, mdl_clss1, mdl_clss2, verbose)
+                detections = self.chain_detection(frame, primary_mapping, secondary_mapping, verbose)
 
                 # TODO delete later is for testing
                 frame = detections.plot()
