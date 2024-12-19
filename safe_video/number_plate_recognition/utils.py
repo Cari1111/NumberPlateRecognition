@@ -2,6 +2,7 @@ from ultralytics.engine.results import Boxes, Results
 from copy import deepcopy
 import numpy as np
 
+
 def merge_results(result1: Results, result2: Results) -> Results:
     """
     Merges the bounding boxes of two YOLO results and also updates the class mapping.
