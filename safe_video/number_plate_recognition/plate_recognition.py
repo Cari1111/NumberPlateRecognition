@@ -1,16 +1,11 @@
 from .utils import *
-
-from PIL import Image
-from pathlib import Path
 from IPython.display import clear_output
-
 import os
 from ultralytics import YOLO
 import cv2
 from ultralytics.engine.results import Results
 import numpy as np
 import torch
-ImageInput = str | Path | int | Image.Image | list | tuple | np.ndarray | torch.Tensor
 
 
 class ObjectDetection():
@@ -21,26 +16,12 @@ class ObjectDetection():
         self.add_model(os.path.join(os.path.abspath("."), "models", "first10ktrain", "weights", "best.pt"))
         self.add_model(os.path.join(os.path.abspath("."), "models", "yolo11n.pt"))
 
-    def apply_blur_to_image(self, image: ImageInput, detection_results: Results) -> np.ndarray:
-        image_copy = image.copy()
-        for bbox, _ in zip(detection_results.boxes.xyxy, detection_results.boxes.cls):
-            cropped_region = self.crop_image(image_copy, bbox)
-            blurred_region = cv2.GaussianBlur(cropped_region, (25, 25), 0)
-            x1, y1, x2, y2 = bbox.astype("int")
-            image_copy[y1:y2, x1:x2] = blurred_region
-        return image_copy
-
     def add_model(self, path: str):
         model = YOLO(path, task="detect")
         model.to(self.device)
         self.models.append(model)
 
     def get_classes(self) -> list[str]: return np.concatenate([list(model.names.values()) for model in self.models])
-
-    def crop_image(self, image: ImageInput, bbox: np.ndarray) -> np.ndarray:
-        assert len(bbox) == 4, "Array must have exactly 4 entries"
-        x1, y1, x2, y2 = bbox.astype("int")
-        return image[y1:y2, x1:x2]
 
     def map_classes_to_models(self, classes: list[str]) -> dict[int, list[int]]:
         classes = classes.copy()
@@ -82,7 +63,7 @@ class ObjectDetection():
             results.append(None)
             for bbox in results[-2].boxes.xyxy:
                 x1, y1, _, _ = bbox.astype("int")
-                cropped_image = self.crop_image(image, bbox)
+                cropped_image = crop_image(image, bbox)
                 result = self.detect_objects(cropped_image, class_dict, verbose)
                 if result.boxes.data.size > 0: result.boxes.data[:, :4] += [x1, y1, x1, y1]
 
