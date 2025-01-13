@@ -131,7 +131,7 @@ def crop_image(image: ImageInput, bbox: np.ndarray) -> np.ndarray:
 
 
 def save_result_as_video(results: list[tuple[int, Results]], output_path: str, original_video_path, codec: str = "mp4v", class_filter: list[str] | str = None,
-                         conf_thresh: float = None, censorship: Callable = None, frame_size=(1920, 1080), fps: int = 30, copy_audio: bool = False, **kwargs):
+                         conf_thresh: float = None, censorship: Callable = None, copy_audio: bool = False, **kwargs):
     def valid_codec(codec: str) -> bool:
         try:
             cv2.VideoWriter_fourcc(*codec)
@@ -139,7 +139,9 @@ def save_result_as_video(results: list[tuple[int, Results]], output_path: str, o
         except cv2.error: return False
 
     if valid_codec(codec) is False: raise ValueError("Invalid codec provided")
-
+    
+    fps = round(cv2.VideoCapture(original_video_path).get(cv2.CAP_PROP_FPS))
+    frame_size = results[0][1].orig_img.shape[:2][::-1]
     fourcc = cv2.VideoWriter_fourcc(*codec)
     # Create a temporary video file to store the processed frames and then copy the audio from the original video to the processed video
     temp_output_path = output_path.replace(".mp4", "_temp.mp4")
@@ -163,5 +165,4 @@ def save_result_as_video(results: list[tuple[int, Results]], output_path: str, o
                           acodec='aac', strict='experimental').run(overwrite_output=True)
         except ffmpeg.Error as e:
             print("Conversion failed:", e)
-        finally:
-            Path(temp_output_path).unlink(missing_ok=True)
+    Path(temp_output_path).unlink(missing_ok=True)

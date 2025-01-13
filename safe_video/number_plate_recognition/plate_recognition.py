@@ -96,7 +96,8 @@ class ObjectDetection():
                       enable_stream_buffer: bool = False, augment: bool = False,
                       debug: bool = False, verbose: bool = False) -> list[tuple[int, Results]]:
         def debug_show_video(frame: ImageInput) -> bool:
-            cv2.imshow("frame", cv2.resize(frame, (1200, 800)))
+            height, width = frame.shape[:2]
+            cv2.imshow("frame", cv2.resize(frame, (int(width / 2), int(height / 2))))
             return cv2.waitKey(1) & 0xFF == ord('q')
 
         detections_in_frames = []
