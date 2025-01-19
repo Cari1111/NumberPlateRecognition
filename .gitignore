@@ -163,3 +163,5 @@ cython_debug/
 #.idea/
 
 *.zip
+/safe_video/number_plate_recognition/datasets
+/runs
