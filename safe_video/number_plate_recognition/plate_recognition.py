@@ -8,6 +8,7 @@ import numpy as np
 import torch
 import warnings
 from deep_sort_realtime.deepsort_tracker import DeepSort
+import cv2 as cv
 
 class ObjectDetection():
     def __init__(self, file_path: str = "."):
@@ -72,9 +73,6 @@ class ObjectDetection():
         results = [self.detect_objects(image, class_dicts[0], conf_thresh=conf_thresh,
                                        augment=augment, verbose=verbose)]
         
-        # add a line of zeros to results[0].boxes.data
-        results[0].boxes.data = np.hstack([results[0].boxes.data, np.zeros((results[0].boxes.data.shape[0], 1))])
-        
         for class_dict in class_dicts[1:]:
             names = {}
             for model_idx, class_indices in class_dict.items():
@@ -92,23 +90,13 @@ class ObjectDetection():
                     if results[-1] is None: results[-1] = result
                     else: results[-1] = merge_results(results[-1], result)
         
-        #print(results[-1].boxes.data)
-        results[-1] = self.track_objects(results[-1], image)
+        track_ids = self.track_objects(results[-1], image)
         
-        # cut off the last column of the results[-1].boxes.data
-        #results[-1].boxes.data = results[-1].boxes.data[:, :-1]
-        #results[-2].boxes.data = results[-2].boxes.data[:, :-1]
-        
-        # print("="*10, "results", "="*10)
-        # print(results[-1].boxes.data)
-        # print("="*10, "results", "="*10)
-        # print(results[-2].boxes.data)
-        
-        return results
+        return results, track_ids
 
-    def track_objects(self, detections: Results, frame: ImageInput) -> Results:
+    def track_objects(self, detections: Results, frame: ImageInput) -> list[int]:
         dets = []
-        tracked_boxes = []
+        tracked_id = []
         for bbox, conf, cls in zip(detections.boxes.xyxy, detections.boxes.conf, detections.boxes.cls):
             x1, y1, x2, y2 = bbox.astype("int")
             dets.append(([x1, y1, abs(x2 - x1), abs(y2 - y1)], conf, str(cls)))  
@@ -120,25 +108,14 @@ class ObjectDetection():
             # if not track.is_confirmed():
             #     print("Not confirmed")
             #     continue
-            x1, y1, x2, y2 = bbox.astype("float")
+            
             track_id = float(track.track_id)
-            x, y, w, h = map(float, track.to_ltwh())
-            cls = float(track.det_class)
-            
-            # check if something went wrong with the tracking
-            if abs(x - x1) > 1 or abs(y - y1) > 1:
-                x1, y1, x2, y2 = x, y, x + w, y + h 
-            
-            tracked_boxes.append([x1, y1, x2, y2, conf, cls, track_id])
+            tracked_id.append(track_id)
         
-        tracked_boxes = np.array(tracked_boxes) 
-        if len(tracked_boxes) > 0:
-            detections.boxes.data = tracked_boxes
+        tracked_id = np.array(tracked_id)
             
-            
-        return detections
+        return tracked_id
 
-        
         
     def process_image(self, image: ImageInput, classes: str | list[str | list[str]],
                       remap_classes: bool = True, conf_thresh: float = 0.25, augment: bool = False, verbose: bool = False) -> list[Results]:
@@ -150,13 +127,22 @@ class ObjectDetection():
             for cls in classes:
                 if issubclass(type(cls), str): cls = [cls]
                 self._class_mappings.append(self.map_classes_to_models(cls))
-        return self.chain_detection(image, self._class_mappings, conf_thresh=conf_thresh, augment=augment, verbose=verbose)
+        result, track_ids = self.chain_detection(image, self._class_mappings, conf_thresh=conf_thresh, augment=augment, verbose=verbose)
+        return result, track_ids
 
     def process_video(self, video_path: str, classes: str | list[str | list[str]],
                       conf_thresh: float = 0.25, iou_threshold: float = 0.7, video_stride: int = 1,
                       enable_stream_buffer: bool = False, augment: bool = False,
                       debug: bool = False, verbose: bool = False) -> list[tuple[int, Results]]:
-        def debug_show_video(frame: ImageInput) -> bool:
+        def debug_show_video(frame: ImageInput, results: Results, track_ids: list[int]) -> bool:
+            for box, track_id in zip(results[-1].boxes.xyxy, track_ids):
+                x1, y1, x2, y2 = map(int, box)  # Convert to integer for OpenCV
+                label = f"ID {int(track_id)}"
+                
+                cv.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                
+                cv.putText(frame, label, (x1, y1 - 10), cv.FONT_HERSHEY_SIMPLEX, 0.9, (36, 255, 12), 2)
+            
             height, width = frame.shape[:2]
             cv2.imshow("frame", cv2.resize(frame, (int(width / 2), int(height / 2))))
             return cv2.waitKey(1) & 0xFF == ord('q')
@@ -171,14 +157,15 @@ class ObjectDetection():
                 frame_counter += 1
                 continue
 
-            detections = self.process_image(frame, classes, frame_counter == 0,
+            detections, track_ids = self.process_image(frame, classes, frame_counter == 0,
                                             conf_thresh=conf_thresh, augment=augment, verbose=verbose)
             detections_in_frames.append((frame_counter, merge_results_list(detections)))
 
             # TODO delete later is for testing
             if debug:
-                frame = merge_results_list(detections).plot()
-                if debug_show_video(frame): break
+                debug_frame = frame.copy()
+                # frame = merge_results_list(detections).plot()
+                if debug_show_video(debug_frame, detections, track_ids): break
             frame_counter += 1
 
         cap.release()
