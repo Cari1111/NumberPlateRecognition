@@ -1,6 +1,6 @@
 import flet as ft
 from safe_video.number_plate_recognition import ObjectDetection
-from .dataclasses import Video, Image, ColorPalette, Version
+from .dataclasses import Video, Image, Media, ColorPalette, Version
 from .components import PreviewImage, AlertSaveWindow, VideoPlayer, ModelTile, AddClassWindow
 from .helper_classes import FileManger, ModelManager
 from flet.matplotlib_chart import MatplotlibChart
@@ -62,11 +62,7 @@ class UI_App:
             self.selected_media = id
             media = self.file_manager[id]
             media.selected(True)
-            if type(media) is Image:
-                self.update_media_container_with_img()
-            if type(media) is Video:
-                self.media_container.content = VideoPlayer(media.get_path_preview(
-                    self.show_censored), media.aspect_ratio, colors=self.colors)
+            self.update_media_container_with_img()
                 # TODO: set player to current position
         self.update()
 
@@ -107,21 +103,23 @@ class UI_App:
         self.media_container.content = ft.Image(src_base64=b64, fit=ft.ImageFit.CONTAIN)
         self.update()
 
-    def blur_img(self, img: Image, cls_ids: list[str]):
-        censored_img = self.model_manager.get_blurred_image(cls_ids, img)
-        self.file_manager.create_blurred_imgs(img.id, censored_img)
-
+    def blur_media(self, media: Media, cls_ids: list[str]):
+        if type(media) is Image:
+            censored_img = self.model_manager.get_blurred_image(cls_ids, media)
+            self.file_manager.create_blurred_imgs(media.id, censored_img)
+        if type(media) is Video:
+            detections = self.model_manager.get_analyzed_video(cls_ids, media)
+            
     def blur_current_img_callback(self, cls_id):
-        self.blur_img(self.file_manager[self.selected_media], [cls_id])
+        self.blur_media(self.file_manager[self.selected_media], [cls_id])
         self.update_media_container_with_img()
 
     def blur_all_callback(self):
-        for img in self.file_manager.values():
-            if type(img) is not Image: continue
-            self.blur_img(img, [cls_id for cls_id in self.model_manager.cls.keys()
+        for media in self.file_manager.values():
+            self.blur_media(media, [cls_id for cls_id in self.model_manager.cls.keys()
                           if self.model_manager.active[cls_id]])
         self.update_media_container_with_img()
-
+        
     def toggle_blur_orig(self, info):
         self.show_censored = not self.show_censored
         self.update_media_container_with_img()
@@ -163,9 +161,15 @@ class UI_App:
         self.page.update()
 
     def update_media_container_with_img(self):
-        with open(self.file_manager[self.selected_media].get_path_preview(self.show_censored), "rb") as img_file:
-            encoded_string = base64.b64encode(img_file.read()).decode("utf-8")
-        self.media_container.content = ft.Image(src_base64=encoded_string, fit=ft.ImageFit.CONTAIN)
+        if self.selected_media is not None: 
+            media = self.file_manager[self.selected_media]
+            if type(media) is Image:
+                with open(self.file_manager[self.selected_media].get_path_preview(self.show_censored), "rb") as img_file:
+                    encoded_string = base64.b64encode(img_file.read()).decode("utf-8")
+                self.media_container.content = ft.Image(src_base64=encoded_string, fit=ft.ImageFit.CONTAIN)
+            if type(media) is Video:
+                self.media_container.content = VideoPlayer(media.get_path_preview(
+                    self.show_censored), media.aspect_ratio, colors=self.colors)
         self.update()
 
     def build_page(self, page: ft.Page):

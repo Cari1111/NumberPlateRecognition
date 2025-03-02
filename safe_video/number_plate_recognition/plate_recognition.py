@@ -104,9 +104,10 @@ class ObjectDetection():
     def process_video(self, video_path: str, classes: str | list[str | list[str]],
                       conf_thresh: float = 0.25, iou_threshold: float = 0.7, video_stride: int = 1,
                       enable_stream_buffer: bool = False, augment: bool = False,
-                      debug: bool = False, verbose: bool = False) -> list[tuple[int, Results]]:
-        def debug_show_video(frame: ImageInput) -> bool:
+                      debug: bool = False, verbose: bool = False) -> list[Results]:
+        def debug_show_video(frame: ImageInput, detection) -> bool:
             height, width = frame.shape[:2]
+            #frame = apply_censorship(frame, detection, action=Censor.blur)
             cv2.imshow("frame", cv2.resize(frame, (int(width / 2), int(height / 2))))
             return cv2.waitKey(1) & 0xFF == ord('q')
 
@@ -122,12 +123,12 @@ class ObjectDetection():
 
             detections = self.process_image(frame, classes, frame_counter == 0,
                                             conf_thresh=conf_thresh, augment=augment, verbose=verbose)
-            detections_in_frames.append((frame_counter, merge_results_list(detections)))
+            detections_in_frames.append(merge_results_list(detections))
 
             # TODO delete later is for testing
             if debug:
-                frame = merge_results_list(detections).plot()
-                if debug_show_video(frame): break
+                frame = frame.copy()
+                if debug_show_video(frame, detections[-1]): break
             frame_counter += 1
 
         cap.release()

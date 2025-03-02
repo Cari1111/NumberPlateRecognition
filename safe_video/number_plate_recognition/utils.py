@@ -130,15 +130,8 @@ def crop_image(image: ImageInput, bbox: np.ndarray) -> np.ndarray:
     return image[y1:y2, x1:x2]
 
 
-def save_result_as_video(results: list[tuple[int, Results]], output_path: str, original_video_path, codec: str = "mp4v", class_filter: list[str] | str = None,
-                         conf_thresh: float = None, censorship: Callable = None, copy_audio: bool = False, **kwargs):
-    def valid_codec(codec: str) -> bool:
-        try:
-            cv2.VideoWriter_fourcc(*codec)
-            return True
-        except cv2.error: return False
-
-    if valid_codec(codec) is False: raise ValueError("Invalid codec provided")
+def save_result_as_video(results: list[Results], output_path: str, original_video_path, codec: str = "mp4v", class_filter: list[str] | str = None,
+                         conf_thresh: float = None, censorship: Callable = None, copy_audio: bool = True, **kwargs):
     
     fps = round(cv2.VideoCapture(original_video_path).get(cv2.CAP_PROP_FPS))
     frame_size = results[0][1].orig_img.shape[:2][::-1]
@@ -146,7 +139,7 @@ def save_result_as_video(results: list[tuple[int, Results]], output_path: str, o
     # Create a temporary video file to store the processed frames and then copy the audio from the original video to the processed video
     temp_output_path = output_path.replace(".mp4", "_temp.mp4")
     video_writer = cv2.VideoWriter(temp_output_path, fourcc, fps, frame_size)
-    for frame_counter, detection in results:
+    for detection in results:
         frame = detection.orig_img
         if frame.shape[:2] != frame_size: frame = cv2.resize(frame, frame_size)
 

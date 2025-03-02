@@ -8,10 +8,11 @@ import pickle
 import numpy as np
 import base64
 import io
+import shutil
 
 from .dataclasses import Image, Video, Media, FileVersion, FileVersionTemplate, ColorPalette, Version
 from .components import ModelTile
-from safe_video.number_plate_recognition import ObjectDetection, Censor, apply_censorship, merge_results_list
+from safe_video.number_plate_recognition import ObjectDetection, Censor, apply_censorship, merge_results_list, save_result_as_video
 from ultralytics.engine.results import Results
 
 class ModelManager():
@@ -79,16 +80,26 @@ class ModelManager():
         for cls_id in cls_ids:
             img_loaded = apply_censorship(img_loaded, self.analyze_or_from_cache(cls_id, img)[-1], Censor.blur)
         return img_loaded
+    
+    def get_analyzed_video(self, cls_ids: list[str], video: Video)-> list[Results]:
+        #shutil.copy(video.get_path(Version.ORIG), video.get_path(Version.ORIG_CENSORED))
+        for cls_id in cls_ids:
+            video_results: list[Results] = self.analyze_or_from_cache(cls_id, video)  
+            save_result_as_video(video_results, video.get_path(Version.PREVIEW_CENSORED), video.get_path(Version.ORIG), class_filter=self.cls[cls_id][-1] ,censorship=Censor.blur)
+        video.censored_available = True   
+        return video_results                
 
-    def analyze_or_from_cache(self, cls_id, img: Image) -> list[Results]:
+    def analyze_or_from_cache(self, cls_id, media: Media) -> list[Results]:
         if cls_id not in self.results:
             self.results[cls_id] = dict()
-        if img.id not in self.results[cls_id]:
-            img_loaded = cv2.imread(img.get_path(Version.ORIG))
+        if media.id not in self.results[cls_id] and type(media) is Image:
+            img_loaded = cv2.imread(media.get_path(Version.ORIG))
             img_loaded = img_loaded[:, :, ::-1]
-            self.results[cls_id][img.id] = self.detection.process_image(img_loaded, self.cls[cls_id], conf_thresh=0.25)
-        return self.results[cls_id][img.id]
-
+            self.results[cls_id][media.id] = self.detection.process_image(img_loaded, self.cls[cls_id], conf_thresh=0.25)
+        if media.id not in self.results[cls_id] and type(media) is Video:
+            print('Processing video')
+            self.results[cls_id][media.id] = self.detection.process_video(media.get_path(Version.ORIG), self.cls[cls_id], conf_thresh=0.25, verbose=True)
+        return self.results[cls_id][media.id]
 
 class FileManger(dict[str, Media]):
     def __init__(self, colors: ColorPalette):
@@ -181,8 +192,8 @@ class FileManger(dict[str, Media]):
         censored_img = PIL.Image.fromarray(blur_result)
         censored_img.save(img.get_path(Version.ORIG_CENSORED))
         self.__create_new_version_of_image(img.get_path(Version.ORIG_CENSORED), img.get_path(Version.PREVIEW_CENSORED), self.PREVIEW_MAX_SIZE)
-        img.censored_available = True
-
+        img.censored_available = True    
+    
     def __create_preview_and_icon_from_video(self, orig_path: str, preview_path: str, icon_path: str):
         shutil.copy(orig_path, preview_path)
         video = cv2.VideoCapture(orig_path)
