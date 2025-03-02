@@ -18,7 +18,7 @@ class ObjectDetection():
         self.add_model(os.path.join(os.path.abspath("."), "models", "first10ktrain", "weights", "best.pt"))
         # self.add_model(r"runs\detect\train5\weights\best.pt")
         self.add_model(os.path.join(os.path.abspath("."), "models", "yolo11n.pt"))
-        self.tracker = DeepSort(max_age=30)  
+        self.tracker = DeepSort(max_age=50)  
 
     def add_model(self, path: str):
         model = YOLO(path, task="detect")
