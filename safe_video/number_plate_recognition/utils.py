@@ -13,24 +13,25 @@ ImageInput = str | Path | int | Image.Image | list | tuple | np.ndarray | torch.
 
 def merge_results(result1: Results, result2: Results) -> Results:
     """
-    Merges the bounding boxes of two YOLO results and also updates the class mapping.
+    Merges bounding boxes from two YOLO results and updates class mapping.
 
     Args:
         result1 (Results): First YOLO result
         result2 (Results): Second YOLO result
 
     Returns:
-        Results: Merged YOLO result containing all bounding boxes from both results and also updated class mapping
+        Results: Merged YOLO result with updated class mapping.
     """
     if result1 is None: return result2
     if result2 is None: return result1
+
     boxes1: Boxes = result1.boxes
     boxes2: Boxes = deepcopy(result2.boxes)
     merged_result: Results = deepcopy(result1)
-    updated_class_mapping: dict[int, str] = {}
+    updated_class_mapping: dict[int, int] = {}  
     current_max_class_idx: int = max(result1.names.keys(), default=-1)
 
-    # check for existing classes in results1 and append new classes from results2
+    # Ensure result2 has valid class mappings
     for class_id2, class_name2 in result2.names.items():
         existing_class_id = next((k for k, v in result1.names.items() if v == class_name2), None)
         if existing_class_id is not None:
@@ -40,30 +41,44 @@ def merge_results(result1: Results, result2: Results) -> Results:
             updated_class_mapping[class_id2] = current_max_class_idx
             merged_result.names[current_max_class_idx] = class_name2
 
-    # remap classes in second results
+    # **Fix KeyError by ensuring mapping exists before accessing**
     if boxes2.data.size > 0:
         for i, class_id in enumerate(boxes2.data[:, -1]):
-            boxes2.data[i, -1] = updated_class_mapping[int(class_id)]
+            class_id = int(class_id)
+            if class_id not in updated_class_mapping:
+                updated_class_mapping[class_id] = class_id  # Keep it unchanged
+            boxes2.data[i, -1] = updated_class_mapping[class_id]  # Remap class ID
 
-    if boxes1.data.size > 0 and boxes2.data.size > 0: merged_data = np.vstack([boxes1.data, boxes2.data])
-    elif boxes1.data.size > 0: merged_data = boxes1.data
-    else: merged_data = boxes2.data
+    # Merge bounding box data
+    if boxes1.data.size > 0 and boxes2.data.size > 0:
+        merged_data = np.vstack([boxes1.data, boxes2.data])
+    elif boxes1.data.size > 0:
+        merged_data = boxes1.data
+    else:
+        merged_data = boxes2.data
+
     merged_result.boxes.data = merged_data
     return merged_result
 
 
 def merge_results_list(results: list[Results]) -> Results:
     """
-    Merges the bounding boxes of multiple YOLO results and also updates the class mapping.
+    Merges multiple YOLO results and updates class mapping.
 
     Args:
-        results (list[Results]): List of YOLO results
+        results (list[Results]): List of YOLO results.
 
     Returns:
-        Results: Merged YOLO result containing all bounding boxes from all results and also updated class mapping
+        Results: Merged YOLO result containing all bounding boxes.
     """
-    merged_result: Results = None
-    for result in results: merged_result = merge_results(merged_result, result)
+    if not results:  # **Prevent empty list issue**
+        return None
+
+    merged_result: Results = deepcopy(results[0])  
+
+    for result in results[1:]:
+        merged_result = merge_results(merged_result, result)
+
     return merged_result
 
 
@@ -74,10 +89,17 @@ def find_key_by_value(dictionary: dict, value: str) -> int:
 def filter_results(results: Results, class_filter: list[str] | str = None, conf_thresh: float = None) -> Results:
     if issubclass(type(class_filter), str): class_filter = [class_filter]
     results = deepcopy(results)
-
+    
+    print(class_filter)
+    print(results.names)
+    
     if class_filter is not None:
         class_filter = [find_key_by_value(results.names, cls) for cls in class_filter]
-        results.boxes.data = np.array([res for res in results.boxes.data if res[-1] in class_filter])
+        print(class_filter)
+        print(results.boxes.data)
+        results.boxes.data = np.array([res for res in results.boxes.data if res[-2] in class_filter])
+        print("After filtering")
+        print(results.boxes.data)
 
     if conf_thresh is not None:
         results.boxes.data = np.array([res for res in results.boxes.data if res[-2] > conf_thresh])

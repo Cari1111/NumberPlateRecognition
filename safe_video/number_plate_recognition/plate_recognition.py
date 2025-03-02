@@ -7,7 +7,7 @@ from ultralytics.engine.results import Results
 import numpy as np
 import torch
 import warnings
-
+from deep_sort_realtime.deepsort_tracker import DeepSort
 
 class ObjectDetection():
     def __init__(self, file_path: str = "."):
@@ -17,6 +17,7 @@ class ObjectDetection():
         self.add_model(os.path.join(os.path.abspath("."), "models", "first10ktrain", "weights", "best.pt"))
         # self.add_model(r"runs\detect\train5\weights\best.pt")
         self.add_model(os.path.join(os.path.abspath("."), "models", "yolo11n.pt"))
+        self.tracker = DeepSort(max_age=30)  
 
     def add_model(self, path: str):
         model = YOLO(path, task="detect")
@@ -70,7 +71,10 @@ class ObjectDetection():
                         conf_thresh: float = 0.25, augment: bool = False, verbose: bool = False) -> Results:
         results = [self.detect_objects(image, class_dicts[0], conf_thresh=conf_thresh,
                                        augment=augment, verbose=verbose)]
-
+        
+        # add a line of zeros to results[0].boxes.data
+        results[0].boxes.data = np.hstack([results[0].boxes.data, np.zeros((results[0].boxes.data.shape[0], 1))])
+        
         for class_dict in class_dicts[1:]:
             names = {}
             for model_idx, class_indices in class_dict.items():
@@ -87,8 +91,55 @@ class ObjectDetection():
 
                     if results[-1] is None: results[-1] = result
                     else: results[-1] = merge_results(results[-1], result)
+        
+        #print(results[-1].boxes.data)
+        results[-1] = self.track_objects(results[-1], image)
+        
+        # cut off the last column of the results[-1].boxes.data
+        #results[-1].boxes.data = results[-1].boxes.data[:, :-1]
+        #results[-2].boxes.data = results[-2].boxes.data[:, :-1]
+        
+        # print("="*10, "results", "="*10)
+        # print(results[-1].boxes.data)
+        # print("="*10, "results", "="*10)
+        # print(results[-2].boxes.data)
+        
         return results
 
+    def track_objects(self, detections: Results, frame: ImageInput) -> Results:
+        dets = []
+        tracked_boxes = []
+        for bbox, conf, cls in zip(detections.boxes.xyxy, detections.boxes.conf, detections.boxes.cls):
+            x1, y1, x2, y2 = bbox.astype("int")
+            dets.append(([x1, y1, abs(x2 - x1), abs(y2 - y1)], conf, str(cls)))  
+            # bbs expected to be a list of detections, each in tuples of ( [left,top,w,h], confidence, detection_class )
+            
+        tracks = self.tracker.update_tracks(dets, frame=frame)        
+        
+        for track, bbox, conf in zip(tracks, detections.boxes.xyxy, detections.boxes.conf):
+            # if not track.is_confirmed():
+            #     print("Not confirmed")
+            #     continue
+            x1, y1, x2, y2 = bbox.astype("float")
+            track_id = float(track.track_id)
+            x, y, w, h = map(float, track.to_ltwh())
+            cls = float(track.det_class)
+            
+            # check if something went wrong with the tracking
+            if abs(x - x1) > 1 or abs(y - y1) > 1:
+                x1, y1, x2, y2 = x, y, x + w, y + h 
+            
+            tracked_boxes.append([x1, y1, x2, y2, conf, cls, track_id])
+        
+        tracked_boxes = np.array(tracked_boxes) 
+        if len(tracked_boxes) > 0:
+            detections.boxes.data = tracked_boxes
+            
+            
+        return detections
+
+        
+        
     def process_image(self, image: ImageInput, classes: str | list[str | list[str]],
                       remap_classes: bool = True, conf_thresh: float = 0.25, augment: bool = False, verbose: bool = False) -> list[Results]:
         if classes is None: raise ValueError("Primary classes must be provided")
