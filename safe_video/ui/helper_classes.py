@@ -82,7 +82,6 @@ class ModelManager():
         return img_loaded
     
     def get_analyzed_video(self, cls_ids: list[str], video: Video)-> list[Results]:
-        #shutil.copy(video.get_path(Version.ORIG), video.get_path(Version.ORIG_CENSORED))
         for cls_id in cls_ids:
             video_results: list[Results] = self.analyze_or_from_cache(cls_id, video)  
             save_result_as_video(video_results, video.get_path(Version.PREVIEW_CENSORED), video.get_path(Version.ORIG), class_filter=self.cls[cls_id][-1] ,censorship=Censor.blur)

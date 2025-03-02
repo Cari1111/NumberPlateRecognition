@@ -103,6 +103,11 @@ class UI_App:
         self.media_container.content = ft.Image(src_base64=b64, fit=ft.ImageFit.CONTAIN)
         self.update()
 
+    def display_progress_bar(self):
+        pb = ft.ProgressBar(width=400)
+        self.page.add(pb)
+        return pb
+    
     def blur_media(self, media: Media, cls_ids: list[str]):
         if type(media) is Image:
             censored_img = self.model_manager.get_blurred_image(cls_ids, media)

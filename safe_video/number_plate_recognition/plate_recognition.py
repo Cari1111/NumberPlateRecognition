@@ -110,9 +110,12 @@ class ObjectDetection():
             #frame = apply_censorship(frame, detection, action=Censor.blur)
             cv2.imshow("frame", cv2.resize(frame, (int(width / 2), int(height / 2))))
             return cv2.waitKey(1) & 0xFF == ord('q')
+        def progress_bar(frame_counter: int, total_frames: int):
+            print(f"Processing frame {frame_counter / total_frames}")
 
         detections_in_frames = []
-        cap = cv2.VideoCapture(video_path)
+        cap = cv2.VideoCapture(video_path)        
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frame_counter = 0
         while cap.isOpened():
             success, frame = cap.read()
@@ -120,11 +123,13 @@ class ObjectDetection():
             if frame_counter % video_stride != 0:
                 frame_counter += 1
                 continue
-
+            
+            
             detections = self.process_image(frame, classes, frame_counter == 0,
                                             conf_thresh=conf_thresh, augment=augment, verbose=verbose)
             detections_in_frames.append(merge_results_list(detections))
-
+            progress_bar(frame_counter, total_frames)
+            
             # TODO delete later is for testing
             if debug:
                 frame = frame.copy()
