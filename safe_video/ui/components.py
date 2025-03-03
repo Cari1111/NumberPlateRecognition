@@ -87,9 +87,10 @@ class ModelTileTextStyle(ft.TextStyle):
 class ModelTileButton(ft.OutlinedButton):
     def __init__(self, colors: ColorPalette, text, on_click, key=None, disabled=False):
         super().__init__(
-            content=ft.Text(text, color=colors.normal if not disabled else colors.background, style=ModelTileTextStyle()),
+            content=ft.Text(text, color=colors.text if not disabled else colors.dark, style=ModelTileTextStyle()),
             on_click=on_click,
-            style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10), side=ft.BorderSide(1, colors.text), padding=10),
+            style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10), side={ft.ControlState.DEFAULT: ft.BorderSide(1, colors.text), 
+                                                                                   ft.ControlState.DISABLED: ft.BorderSide(1, colors.dark)}, padding=10),
             disabled=disabled,
             key=key),
 class ModelTileIconButton(ft.IconButton):
