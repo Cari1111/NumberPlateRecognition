@@ -7,6 +7,7 @@ from ultralytics.engine.results import Results
 import numpy as np
 import torch
 import warnings
+import flet as ft
 
 
 class ObjectDetection():
@@ -28,7 +29,7 @@ class ObjectDetection():
         model.to(self.device)
         self.models.append(model)
 
-    def get_classes(self) -> list[str]: 
+    def get_classes(self) -> list[str]:
         if len(self.models) == 0:
             return []
         return np.concatenate([list(model.names.values()) for model in self.models])
@@ -101,20 +102,21 @@ class ObjectDetection():
                 self._class_mappings.append(self.map_classes_to_models(cls))
         return self.chain_detection(image, self._class_mappings, conf_thresh=conf_thresh, augment=augment, verbose=verbose)
 
-    def process_video(self, video_path: str, classes: str | list[str | list[str]],
+    def process_video(self, video_path: str, classes: str | list[str | list[str]], page: ft.Page, pb: ft.ProgressBar,
                       conf_thresh: float = 0.25, iou_threshold: float = 0.7, video_stride: int = 1,
                       enable_stream_buffer: bool = False, augment: bool = False,
                       debug: bool = False, verbose: bool = False) -> list[Results]:
         def debug_show_video(frame: ImageInput, detection) -> bool:
             height, width = frame.shape[:2]
-            #frame = apply_censorship(frame, detection, action=Censor.blur)
+            # frame = apply_censorship(frame, detection, action=Censor.blur)
             cv2.imshow("frame", cv2.resize(frame, (int(width / 2), int(height / 2))))
             return cv2.waitKey(1) & 0xFF == ord('q')
+
         def progress_bar(frame_counter: int, total_frames: int):
             print(f"Processing frame {frame_counter / total_frames}")
 
         detections_in_frames = []
-        cap = cv2.VideoCapture(video_path)        
+        cap = cv2.VideoCapture(video_path)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frame_counter = 0
         while cap.isOpened():
@@ -123,16 +125,19 @@ class ObjectDetection():
             if frame_counter % video_stride != 0:
                 frame_counter += 1
                 continue
-            
-            
+
             detections = self.process_image(frame, classes, frame_counter == 0,
                                             conf_thresh=conf_thresh, augment=augment, verbose=verbose)
             detections_in_frames.append(merge_results_list(detections))
-            progress_bar(frame_counter, total_frames)
-            
+
+            progress = (frame_counter / total_frames) * 0.5
+            pb.value = progress
+            page.update()
+
             # TODO delete later is for testing
             if debug:
-                frame = frame.copy()
+                # frame = frame.copy()
+                frame = merge_results_list(detections).plot()
                 if debug_show_video(frame, detections[-1]): break
             frame_counter += 1
 

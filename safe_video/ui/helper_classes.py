@@ -9,6 +9,7 @@ import numpy as np
 import base64
 import io
 import shutil
+import flet as ft
 
 from .dataclasses import Image, Video, Media, FileVersion, FileVersionTemplate, ColorPalette, Version
 from .components import ModelTile
@@ -78,17 +79,20 @@ class ModelManager():
     def get_blurred_image(self, cls_ids: str, img: Image) -> np.ndarray:
         img_loaded = cv2.imread(img.get_path(Version.ORIG))[:, :, ::-1]
         for cls_id in cls_ids:
-            img_loaded = apply_censorship(img_loaded, self.analyze_or_from_cache(cls_id, img)[-1], Censor.blur)
+            img_loaded = apply_censorship(img_loaded, self.analyze_or_from_cache(cls_id, img, None, None)[-1], Censor.blur)
         return img_loaded
+
     
-    def get_analyzed_video(self, cls_ids: list[str], video: Video)-> list[Results]:
+    def get_analyzed_video(self, cls_ids: list[str], video: Video, page:ft.Page, pb:ft.ProgressBar)-> list[Results]:
         for cls_id in cls_ids:
-            video_results: list[Results] = self.analyze_or_from_cache(cls_id, video)  
-            save_result_as_video(video_results, video.get_path(Version.PREVIEW_CENSORED), video.get_path(Version.ORIG), class_filter=self.cls[cls_id][-1] ,censorship=Censor.blur)
+            video_results: list[Results] = self.analyze_or_from_cache(cls_id, video, pb, page)  
+            save_result_as_video(video_results, video.get_path(Version.PREVIEW_CENSORED), video.get_path(Version.ORIG),
+                                 page, pb,
+                                 class_filter=self.cls[cls_id][-1] ,censorship=Censor.blur )
         video.censored_available = True   
         return video_results                
 
-    def analyze_or_from_cache(self, cls_id, media: Media) -> list[Results]:
+    def analyze_or_from_cache(self, cls_id, media: Media, page:ft.Page, pb:ft.ProgressBar) -> list[Results]:
         if cls_id not in self.results:
             self.results[cls_id] = dict()
         if media.id not in self.results[cls_id] and type(media) is Image:
@@ -97,7 +101,7 @@ class ModelManager():
             self.results[cls_id][media.id] = self.detection.process_image(img_loaded, self.cls[cls_id], conf_thresh=0.25)
         if media.id not in self.results[cls_id] and type(media) is Video:
             print('Processing video')
-            self.results[cls_id][media.id] = self.detection.process_video(media.get_path(Version.ORIG), self.cls[cls_id], conf_thresh=0.25, verbose=True)
+            self.results[cls_id][media.id] = self.detection.process_video(media.get_path(Version.ORIG), self.cls[cls_id], page=page, pb=pb,  conf_thresh=0.25, verbose=False)
         return self.results[cls_id][media.id]
 
 class FileManger(dict[str, Media]):

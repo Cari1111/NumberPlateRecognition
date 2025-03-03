@@ -102,10 +102,18 @@ class UI_App:
         b64 = self.model_manager.get_bounding_box_image(model_id, self.file_manager[self.selected_media])
         self.media_container.content = ft.Image(src_base64=b64, fit=ft.ImageFit.CONTAIN)
         self.update()
+    
+    def display_progress_bar(self, text:str):
+        progress_text = ft.Text(text)
+        pb = ft.ProgressBar(width=500)
 
-    def display_progress_bar(self):
-        pb = ft.ProgressBar(width=400)
-        self.page.add(pb)
+        pb_container = ft.Column([progress_text, pb], alignment=ft.alignment.center)
+        self.media_container.content = ft.Stack(
+            [self.media_container.content, pb_container],
+            alignment=ft.alignment.center            
+        )
+        self.page.update()
+        
         return pb
     
     def blur_media(self, media: Media, cls_ids: list[str]):
@@ -113,7 +121,7 @@ class UI_App:
             censored_img = self.model_manager.get_blurred_image(cls_ids, media)
             self.file_manager.create_blurred_imgs(media.id, censored_img)
         if type(media) is Video:
-            detections = self.model_manager.get_analyzed_video(cls_ids, media)
+            detections = self.model_manager.get_analyzed_video(cls_ids, media, self.page, self.display_progress_bar( "Analyzing and saving video ..."))
             
     def blur_current_img_callback(self, cls_id):
         self.blur_media(self.file_manager[self.selected_media], [cls_id])
