@@ -84,15 +84,13 @@ class ModelManager():
 
     
     def get_analyzed_video(self, cls_ids: list[str], video: Video, page:ft.Page, pb:ft.ProgressBar)-> list[Results]:
+        shutil.copy(video.get_path(Version.ORIG), video.get_path(Version.PREVIEW_CENSORED))
         for cls_id in cls_ids:
-            video_results: list[Results] = self.analyze_or_from_cache(cls_id, video, pb, page)  
-            save_result_as_video(video_results, video.get_path(Version.PREVIEW_CENSORED), video.get_path(Version.ORIG),
-                                 page, pb,
-                                 class_filter=self.cls[cls_id][-1] ,censorship=Censor.blur )
+            video_results: list[Results] = self.analyze_or_from_cache(cls_id, video, page, pb)
         video.censored_available = True   
         return video_results                
 
-    def analyze_or_from_cache(self, cls_id, media: Media, page:ft.Page, pb:ft.ProgressBar) -> list[Results]:
+    def analyze_or_from_cache(self, cls_id, media: Media, page:ft.Page =None, pb:ft.ProgressBar=None) -> list[Results]:
         if cls_id not in self.results:
             self.results[cls_id] = dict()
         if media.id not in self.results[cls_id] and type(media) is Image:
@@ -100,8 +98,10 @@ class ModelManager():
             img_loaded = img_loaded[:, :, ::-1]
             self.results[cls_id][media.id] = self.detection.process_image(img_loaded, self.cls[cls_id], conf_thresh=0.25)
         if media.id not in self.results[cls_id] and type(media) is Video:
-            print('Processing video')
-            self.results[cls_id][media.id] = self.detection.process_video(media.get_path(Version.ORIG), self.cls[cls_id], page=page, pb=pb,  conf_thresh=0.25, verbose=False)
+            self.results[cls_id][media.id] = self.detection.process_video(media.get_path(Version.PREVIEW_CENSORED), self.cls[cls_id], page=page, pb=pb, cls_id = cls_id, conf_thresh=0.25, verbose=False)
+            save_result_as_video(self.results[cls_id][media.id], media.get_path(Version.PREVIEW_CENSORED), media.get_path(Version.PREVIEW_CENSORED),
+                                    page, pb, cls_id=cls_id,
+                                    class_filter=self.cls[cls_id][-1] ,censorship=Censor.blur)
         return self.results[cls_id][media.id]
 
 class FileManger(dict[str, Media]):

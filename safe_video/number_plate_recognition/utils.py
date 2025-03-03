@@ -130,9 +130,13 @@ def crop_image(image: ImageInput, bbox: np.ndarray) -> np.ndarray:
     return image[y1:y2, x1:x2]
 
 
-def save_result_as_video(results: list[Results], output_path: str, original_video_path, pb, page,
+def save_result_as_video(results: list[Results], output_path: str, original_video_path, page: ft.Page = None, pb: ft.Column = None, cls_id = "",
                          codec: str = "mp4v", class_filter: list[str] | str = None,
                          conf_thresh: float = None, censorship: Callable = None, copy_audio: bool = True, **kwargs):
+    
+    pb_text = pb.controls[0]
+    progress_value = pb.controls[1]
+    pb_text.value = f"Saving video, config {cls_id}"
 
     cap = cv2.VideoCapture(original_video_path)
     fps = round(cap.get(cv2.CAP_PROP_FPS))
@@ -157,7 +161,7 @@ def save_result_as_video(results: list[Results], output_path: str, original_vide
         if censorship is not None: frame = apply_censorship(frame, detection, censorship, **kwargs)
 
         progress = 0.5 + (i / total_frames) * 0.5
-        pb.value = progress
+        progress_value.value = progress
         page.update()
 
         video_writer.write(frame)
@@ -165,15 +169,18 @@ def save_result_as_video(results: list[Results], output_path: str, original_vide
 
     if original_video_path and copy_audio:
         try:
+            temp_final_output_path = output_path.replace(".mp4", "_final.mp4")
             input_video = ffmpeg.input(original_video_path)
             input_audio = input_video.audio
             input_temp_video = ffmpeg.input(temp_output_path)
-            ffmpeg.output(input_temp_video.video, input_audio, output_path, vcodec='copy',
-                          acodec='aac', strict='experimental').run(overwrite_output=True)
+            ffmpeg.output(input_temp_video.video, input_audio, temp_final_output_path, 
+                          vcodec='copy', acodec='aac', strict='experimental').run(overwrite_output=True)
+            Path(temp_final_output_path).replace(output_path)
         except ffmpeg.Error as e:
             print("Conversion failed:", e)
         finally:
             Path(temp_output_path).unlink(missing_ok=True)
+            Path(temp_final_output_path).unlink(missing_ok=True)
     else:
         Path(temp_output_path).replace(output_path)
 

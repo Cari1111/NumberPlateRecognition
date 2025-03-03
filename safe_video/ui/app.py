@@ -114,14 +114,14 @@ class UI_App:
         )
         self.page.update()
         
-        return pb
+        return pb_container
     
     def blur_media(self, media: Media, cls_ids: list[str]):
         if type(media) is Image:
             censored_img = self.model_manager.get_blurred_image(cls_ids, media)
             self.file_manager.create_blurred_imgs(media.id, censored_img)
         if type(media) is Video:
-            detections = self.model_manager.get_analyzed_video(cls_ids, media, self.page, self.display_progress_bar( "Analyzing and saving video ..."))
+            detections = self.model_manager.get_analyzed_video(cls_ids, media, self.page, self.display_progress_bar("..."))
             
     def blur_current_img_callback(self, cls_id):
         self.blur_media(self.file_manager[self.selected_media], [cls_id])
@@ -169,10 +169,17 @@ class UI_App:
                       boundingBox_callback=lambda info: self.show_bounding_boxes(info.control.key),
                       blur_callback=lambda info: self.blur_current_img_callback(info.control.key),
                       edit_callback=edit_callback,
-                      delete_callback=delete_callback
+                      delete_callback=delete_callback,
+                      blur_buttons_status=self.blur_buttons_status_callback(), 
                       ) for c in self.model_manager.cls.keys()]
         self.page.update()
 
+    def blur_buttons_status_callback(self) -> bool:
+        if self.selected_media is None: return True
+        media = self.file_manager[self.selected_media]
+        if type(media) is Video: return True
+        return False
+    
     def update_media_container_with_img(self):
         if self.selected_media is not None: 
             media = self.file_manager[self.selected_media]
