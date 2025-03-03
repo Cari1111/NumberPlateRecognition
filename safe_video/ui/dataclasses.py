@@ -80,5 +80,6 @@ class ColorPalette:
     normal: str
     background: str
     dark: str
+    light: str
     selected: str
     text: str

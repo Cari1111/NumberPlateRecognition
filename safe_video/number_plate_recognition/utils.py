@@ -1,8 +1,11 @@
 from ultralytics.engine.results import Boxes, Results
 from copy import deepcopy
-from PIL import Image
+from PIL import Image, ImageColor
 from pathlib import Path
 from typing import Callable
+from matplotlib import pyplot as plt
+
+import os 
 import flet as ft
 import numpy as np
 import cv2
@@ -107,9 +110,14 @@ class Censor:
         blurred_region = cv2.GaussianBlur(blurred_region, (kernel_size, kernel_size), 0)
         return blurred_region
 
-    def solid(color: tuple, **kwargs) -> np.ndarray: return color
+    def solid(color: tuple|str, **kwargs) -> np.ndarray:
+        if type(color) is str:
+            color = ImageColor.getcolor(color, "RGB")
+        return color
 
-    def overlay(image: np.ndarray, overlayImage: np.ndarray, **kwargs) -> np.ndarray:
+    def overlay(image: np.ndarray, overlayImage: np.ndarray|str, **kwargs) -> np.ndarray:
+        if type(overlayImage) is str:
+            overlayImage = cv2.imread(overlayImage)[:, :, ::-1]
         return cv2.resize(overlayImage, image.shape[:2][::-1])
 
 
@@ -131,12 +139,13 @@ def crop_image(image: ImageInput, bbox: np.ndarray) -> np.ndarray:
 
 
 def save_result_as_video(results: list[Results], output_path: str, original_video_path, page: ft.Page = None, pb: ft.Column = None, cls_id = "",
-                         codec: str = "mp4v", class_filter: list[str] | str = None,
-                         conf_thresh: float = None, censorship: Callable = None, copy_audio: bool = True, **kwargs):
+                         class_filter: list[str] | str = None, conf_thresh: float = None, copy_audio: bool = True, 
+                          **kwargs):
     
     pb_text = pb.controls[0]
     progress_value = pb.controls[1]
     pb_text.value = f"Saving video, config {cls_id}"
+    # print(censorship)
 
     cap = cv2.VideoCapture(original_video_path)
     fps = round(cap.get(cv2.CAP_PROP_FPS))
@@ -148,7 +157,7 @@ def save_result_as_video(results: list[Results], output_path: str, original_vide
 
     if results and len(results[0]) > 0:
         frame_size = results[0][1].orig_img.shape[:2][::-1]
-
+    codec = "mp4v"
     fourcc = cv2.VideoWriter_fourcc(*codec)
     # Create a temporary video file to store the processed frames and then copy the audio from the original video to the processed video
     temp_output_path = output_path.replace(".mp4", "_temp.mp4")
@@ -158,7 +167,7 @@ def save_result_as_video(results: list[Results], output_path: str, original_vide
         if frame.shape[:2] != frame_size: frame = cv2.resize(frame, frame_size)
 
         detection = filter_results(detection, class_filter, conf_thresh)
-        if censorship is not None: frame = apply_censorship(frame, detection, censorship, **kwargs)
+        frame = apply_censorship(frame, detection, **kwargs)
 
         progress = 0.5 + (i / total_frames) * 0.5
         progress_value.value = progress
@@ -175,14 +184,23 @@ def save_result_as_video(results: list[Results], output_path: str, original_vide
             input_temp_video = ffmpeg.input(temp_output_path)
             ffmpeg.output(input_temp_video.video, input_audio, temp_final_output_path, 
                           vcodec='copy', acodec='aac', strict='experimental').run(overwrite_output=True)
-            Path(temp_final_output_path).replace(output_path)
+            
+            if os.path.exists(output_path):
+                os.remove(output_path) 
+            os.rename(temp_final_output_path, output_path)  
+            
+            
         except ffmpeg.Error as e:
             print("Conversion failed:", e)
         finally:
-            Path(temp_output_path).unlink(missing_ok=True)
-            Path(temp_final_output_path).unlink(missing_ok=True)
+            if os.path.exists(temp_output_path):
+                os.remove(temp_output_path)
+            if os.path.exists(temp_final_output_path):
+                os.remove(temp_final_output_path)
     else:
-        Path(temp_output_path).replace(output_path)
+        if os.path.exists(output_path):
+            os.remove(output_path)  
+        os.rename(temp_output_path, output_path)  
 
     pb.value = 1.0
     page.update()

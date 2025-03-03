@@ -15,11 +15,13 @@ class ObjectDetection():
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.file_path = file_path
         self.models: list[YOLO] = []
-        self.add_model(os.path.join(os.path.abspath("."), "models", "first10ktrain", "weights", "best.pt"))
+        self.add_model(os.path.join(os.path.abspath("."), "models", "first10ktrain", "weights", "licensePlate.pt"))
         # self.add_model(r"runs\detect\train5\weights\best.pt")
         self.add_model(os.path.join(os.path.abspath("."), "models", "yolo11n.pt"))
 
     def add_model(self, path: str):
+        if os.path.basename(path) in self.get_names():
+            raise ValueError(f"Model with name {os.path.basename(path)} already exists")
         model = YOLO(path, task="detect")
         if set(model.names.values()).issubset(self.get_classes()):
             raise ValueError(f"All classes from the new model already exist: {list(model.names.values())}")
@@ -29,10 +31,20 @@ class ObjectDetection():
         model.to(self.device)
         self.models.append(model)
 
+    def del_model(self, id: str|int):
+        if issubclass(type(id), str):
+            id = self.get_names().index(id)
+        self.models.pop(id)
+
     def get_classes(self) -> list[str]:
-        if len(self.models) == 0:
-            return []
+        if len(self.models) == 0: return []
         return np.concatenate([list(model.names.values()) for model in self.models])
+
+    def get_names(self) -> list[str]:
+        return [os.path.basename(model.model_name) for model in self.models]
+
+    def get_names_with_classes(self) -> list[str, list[str]]:
+        return list(zip(self.get_names(), [list(model.names.values()) for model in self.models]))
 
     def map_classes_to_models(self, classes: list[str]) -> dict[int, list[int]]:
         classes = classes.copy()
