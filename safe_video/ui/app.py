@@ -182,7 +182,7 @@ class UI_App:
                 blur_callback=lambda info: self.blur_current_img_callback(info.control.key),
                 edit_callback=edit_callback,
                 delete_callback=delete_callback,
-                # blur_buttons_status=self.blur_buttons_status_callback(),
+                blur_buttons_status=self.blur_buttons_status_callback(),
                 ) for c in self.model_manager.cls.keys()]
         self.page.update()
 
