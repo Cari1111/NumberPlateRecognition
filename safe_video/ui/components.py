@@ -84,7 +84,7 @@ class ColorPickerWindow(ft.AlertDialog):
         )
 class ModelTileTextStyle(ft.TextStyle):
     def __init__(self):
-        super().__init__(weight=ft.FontWeight.W_500)
+        super().__init__(size=13, weight=ft.FontWeight.W_500)
 class ModelTileButton(ft.OutlinedButton):
     def __init__(self, colors: ColorPalette, text, on_click, key=None, disabled=False):
         super().__init__(
@@ -205,10 +205,10 @@ class ClassDropdown(ft.Dropdown):
     def __init__(self, cls_options: list[str], colors: ColorPalette, cls: str = ''):
         super().__init__(
             value=cls,
-            options=[ft.dropdown.Option(cls_option) for cls_option in cls_options],
+            options=[ft.dropdown.Option(cls_option) for cls_option in sorted(cls_options)],
             width=150,
             color=colors.text,
-            border_color=colors.background)
+            border_color=colors.light_accent)
 
 
 class AddClassLayerRow(ft.Container):
@@ -227,8 +227,8 @@ class AddClassLayerRow(ft.Container):
             ], wrap=True, expand=True)
         super().__init__(
             ft.Column([ft.Text(f'Layer {layer_num}', weight=ft.FontWeight.BOLD, color=colors.text), self.cls_row]),
-            bgcolor=colors.normal,
-            border=ft.border.all(3, color=colors.background),
+            bgcolor=colors.light,
+            border=ft.border.all(2, color=colors.light_accent),
             border_radius=10,
             padding=10)
 
@@ -280,9 +280,10 @@ class AddClassWindow(ft.AlertDialog):
         super().__init__(
             modal=True,
             title=ft.Text("Define the class"),
+            bgcolor=colors.normal,
             content=ft.ListView(
                 [ft.TextField(label="Name", value=name, color=colors.text,
-                              bgcolor=colors.normal, border_color=colors.text)]
+                              bgcolor=colors.normal, border_color=colors.light_accent)]
                 + layers
                 + [ft.Row([ft.TextButton(
                         'Add new layer',
@@ -328,6 +329,7 @@ class SettingsWindow(ft.AlertDialog):
         self.main_page.overlay.append(self.file_picker)
         super().__init__(
             modal=False,
+            bgcolor=colors.normal,
             title=ft.Text("Options", size=24, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
             content=ft.Container(
                 content=ft.Column([

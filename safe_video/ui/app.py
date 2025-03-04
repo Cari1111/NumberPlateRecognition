@@ -12,6 +12,7 @@ DarkColors = ColorPalette(
     background="#232833",
     dark="#101217",
     light="#21252f",
+    light_accent = "#464e63",
     selected='#2b84ff',
     text='#aec1eb'
 )
