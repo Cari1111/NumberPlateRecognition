@@ -205,7 +205,7 @@ class ClassDropdown(ft.Dropdown):
     def __init__(self, cls_options: list[str], colors: ColorPalette, cls: str = ''):
         super().__init__(
             value=cls,
-            options=[ft.dropdown.Option(cls_option) for cls_option in sorted(cls_options)],
+            options=[ft.dropdown.Option(cls_option) for cls_option in sorted(cls_options, key=str.casefold)],
             width=150,
             color=colors.text,
             border_color=colors.light_accent)
