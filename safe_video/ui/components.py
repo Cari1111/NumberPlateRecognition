@@ -1,6 +1,8 @@
 import flet as ft
 from .color_picker.color_picker import ColorPicker
 from .dataclasses import Image, Video, Media, FileVersion, FileVersionTemplate, ColorPalette, Version
+import flet_video
+import flet_core as fc
 import os
 from safe_video.number_plate_recognition import Censor
 
@@ -10,20 +12,19 @@ class PreviewImage(ft.Stack):
         self.select_color = select_color
         self.container = ft.Container(
             key=key,
-            image_src=path,
+            image=ft.DecorationImage(src=path, fit=ft.ImageFit.COVER),
             width=50,
             height=50,
             on_click=callback,
-            image_fit=ft.ImageFit.COVER,
             border_radius=10,
         )
-        self.triangle = ft.Container(ft.canvas.Canvas([
-            ft.canvas.Path(
-                [ft.canvas.Path.MoveTo(-3, 7), ft.canvas.Path.LineTo(-3, -7), ft.canvas.Path.LineTo(7, 0)],
-                paint=ft.Paint(style=ft.PaintingStyle.FILL, color='#fcfcfc', stroke_cap=ft.StrokeCap.ROUND)),
-            ft.canvas.Path(
-                [ft.canvas.Path.MoveTo(-4, 8), ft.canvas.Path.LineTo(-4, -8),
-                 ft.canvas.Path.LineTo(8, 0), ft.canvas.Path.Close()],
+        self.triangle = ft.Container(fc.canvas.Canvas([
+            fc.canvas.Path(
+                [fc.canvas.Path.MoveTo(-3, 7), fc.canvas.Path.LineTo(-3, -7), fc.canvas.Path.LineTo(7, 0)],
+                paint=fc.Paint(style=fc.PaintingStyle.FILL, color='#fcfcfc', stroke_cap=fc.StrokeCap.ROUND)),
+            fc.canvas.Path(
+                [fc.canvas.Path.MoveTo(-4, 8), fc.canvas.Path.LineTo(-4, -8),
+                 fc.canvas.Path.LineTo(8, 0), fc.canvas.Path.Close()],
                 paint=ft.Paint(style=ft.PaintingStyle.STROKE, stroke_width=1, color='#3e3f40', stroke_cap=ft.StrokeCap.ROUND))]))
         super().__init__(
             key=key,
@@ -55,7 +56,7 @@ class AlertSaveWindow(ft.AlertDialog):
             ])
 
 
-class VideoPlayer(ft.Video):
+class VideoPlayer(flet_video.Video):
     def __init__(self, path, aspect_ratio, colors):
         super().__init__(
             playlist=[ft.VideoMedia(path)],
@@ -125,7 +126,6 @@ class CensorOptions(ft.Row):
                 border_width=1,
                 border_radius=10,
                 focused_color=colors.text,
-                height=45,
                 padding=0,
                 text_style=ModelTileTextStyle(),
                 on_change=self.change_option)

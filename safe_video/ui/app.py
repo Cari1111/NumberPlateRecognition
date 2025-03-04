@@ -22,7 +22,7 @@ class UI_App:
         self.file_manager = FileManger(self.colors)
         self.model_manager = ModelManager(self.show_bounding_boxes)
         self.page: ft.Page = None
-        self.media_container = ft.Container(expand=True, image_fit=ft.ImageFit.CONTAIN, margin=10)
+        self.media_container = ft.Container(expand=True, image=ft.DecorationImage(fit=ft.ImageFit.CONTAIN), margin=10)
         self.preview_bar = ft.ListView([], expand=True, spacing=10)
         self.selected_media: str = None
         self.file_picker_open = ft.FilePicker(on_result=self.upload_callback)
@@ -46,7 +46,7 @@ class UI_App:
         for id in ids:
             media = self.file_manager[id]
             media.preview_container = PreviewImage(media.id, media.get_path(
-                Version.ICON), self.switch_image_callback, select_color=self.colors.selected, video=(type(media) == Video))
+                Version.ICON), self.switch_image_callback, select_color=self.colors.selected, video=(type(media) is Video))
             self.preview_bar.controls.append(media.preview_container)
         self.switch_image(ids[-1])
         self.update()
