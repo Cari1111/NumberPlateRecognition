@@ -11,6 +11,7 @@ import numpy as np
 import cv2
 import torch
 import ffmpeg
+import asyncio
 ImageInput = str | Path | int | Image.Image | list | tuple | np.ndarray | torch.Tensor
 
 
@@ -137,6 +138,11 @@ def crop_image(image: ImageInput, bbox: np.ndarray) -> np.ndarray:
     x1, y1, x2, y2 = bbox.astype("int")
     return image[y1:y2, x1:x2]
 
+
+def save_video(**kwargs):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(save_video_with_status(*list(kwargs.values())[:3], kwargs))
 
 
 async def save_video_with_status(results: list, output_path: str, original_video_path, cls_id="",

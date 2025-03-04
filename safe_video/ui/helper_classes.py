@@ -109,9 +109,13 @@ class ModelManager():
         pb_text.value = "Saving video"
         page.update()
         status = save_video_with_status(*list(kwargs.values())[:3], kwargs)
-        async for p in status:
-            progress_value.value = p
-            await page.update_async()
+        last_update_time = asyncio.get_event_loop().time()
+        async for progress in status:
+            current_time = asyncio.get_event_loop().time()
+            if current_time - last_update_time >= 0.1:
+                progress_value.value = progress
+                page.update()
+                last_update_time = current_time
 
     def analyze_or_from_cache(self, cls_id, media: Media, page: ft.Page = None, pb: ft.ProgressBar = None, options=None) -> list[Results]:
         if cls_id not in self.results:
