@@ -99,6 +99,8 @@ class ModelManager():
                                 class_filter=self.cls[cls_id][-1], **options[cls_id]))
 
         video.censored_available = True
+
+        shutil.copy(video.get_path(Version.PREVIEW_CENSORED), video.get_path(Version.ORIG_CENSORED))
         return video_results
 
     async def save_video(self, page: ft.Page, pb: ft.ProgressBar, **kwargs):
