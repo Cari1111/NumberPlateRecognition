@@ -138,14 +138,10 @@ def crop_image(image: ImageInput, bbox: np.ndarray) -> np.ndarray:
     return image[y1:y2, x1:x2]
 
 
-def save_result_as_video(results: list[Results], output_path: str, original_video_path, page: ft.Page = None, pb: ft.Column = None, cls_id="",
-                         class_filter: list[str] | str = None, conf_thresh: float = None, copy_audio: bool = True,
-                         **kwargs):
 
-    pb_text = pb.controls[0]
-    progress_value = pb.controls[1]
-    pb_text.value = f"Saving video, config {cls_id}"
-
+async def save_video_with_status(results: list, output_path: str, original_video_path, cls_id="",
+                                 class_filter=None, conf_thresh=None, copy_audio=True,
+                                 **kwargs):
     cap = cv2.VideoCapture(original_video_path)
     fps = round(cap.get(cv2.CAP_PROP_FPS))
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -157,19 +153,19 @@ def save_result_as_video(results: list[Results], output_path: str, original_vide
     if results and len(results[0]) > 0:
         frame_size = results[0][1].orig_img.shape[:2][::-1]
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    # Create a temporary video file to store the processed frames and then copy the audio from the original video to the processed video
     temp_output_path = output_path.replace(".mp4", "_temp.mp4")
     video_writer = cv2.VideoWriter(temp_output_path, fourcc, fps, frame_size)
+
     for i, detection in enumerate(results):
         frame = detection.orig_img
-        if frame.shape[:2] != frame_size: frame = cv2.resize(frame, frame_size)
+        if frame.shape[:2] != frame_size:
+            frame = cv2.resize(frame, frame_size)
 
         detection = filter_results(detection, class_filter, conf_thresh)
         frame = apply_censorship(frame, detection, **kwargs)
 
         progress = 0.5 + (i / total_frames) * 0.5
-        progress_value.value = progress
-        page.update()
+        yield progress
 
         video_writer.write(frame)
     video_writer.release()
@@ -199,5 +195,4 @@ def save_result_as_video(results: list[Results], output_path: str, original_vide
             os.remove(output_path)
         os.rename(temp_output_path, output_path)
 
-    pb.value = 1.0
-    page.update()
+    yield 1.0

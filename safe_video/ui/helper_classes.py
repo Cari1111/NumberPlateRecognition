@@ -10,11 +10,13 @@ import base64
 import io
 import shutil
 import flet as ft
+import asyncio
 
 from .dataclasses import Image, Video, Media, FileVersion, FileVersionTemplate, ColorPalette, Version
 from .components import ModelTile
-from safe_video.number_plate_recognition import ObjectDetection, Censor, apply_censorship, merge_results_list, save_result_as_video
+from safe_video.number_plate_recognition import ObjectDetection, Censor, apply_censorship, merge_results_list, save_video_with_status
 from ultralytics.engine.results import Results
+
 
 class ModelManager():
     def __init__(self, bounding_box_func):
@@ -25,7 +27,7 @@ class ModelManager():
             with open(self.cls_file_path, 'rb') as file:
                 self.cls = pickle.load(file)
         self.active: dict[str, bool] = {c: True for c in self.cls.keys()}
-        self.results: dict[str, dict[str, Results]] = dict() # dict[cls_id][img_id]
+        self.results: dict[str, dict[str, Results]] = dict()  # dict[cls_id][img_id]
         self.bounding_box_func = bounding_box_func
 
     def toggle_active(self, cls_id):
@@ -34,12 +36,12 @@ class ModelManager():
     def get_possible_cls(self):
         return self.detection.get_classes()
 
-    def insert_new_cls(self, name, classes, active = True):
+    def insert_new_cls(self, name, classes, active=True):
         counter = 1
         id = name
         while id in self.cls.keys():
             id = name + ' ' + str(counter)
-            counter +=1
+            counter += 1
         self.cls[id] = classes
         self.active[id] = active
         self.update_cls_file()
@@ -83,19 +85,31 @@ class ModelManager():
         return img_loaded
 
     def get_analyzed_video(self, cls_ids: list[str], video: Video, page: ft.Page, pb: ft.ProgressBar, options) -> list[Results]:
-
         if not video.censored_available:
             shutil.copy(video.get_path(Version.ORIG), video.get_path(Version.PREVIEW_CENSORED))
 
         for cls_id in cls_ids:
             video_results: list[Results] = self.analyze_or_from_cache(cls_id, video, page, pb, options)
-
-            save_result_as_video(self.results[cls_id][video.id], video.get_path(Version.PREVIEW_CENSORED), video.get_path(Version.PREVIEW_CENSORED),
-                                 page, pb, cls_id=cls_id,
-                                 class_filter=self.cls[cls_id][-1], **options[cls_id])
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(
+                self.save_video(page, pb,
+                                results=self.results[cls_id][video.id], output_path=video.get_path(Version.PREVIEW_CENSORED),
+                                original_video_path=video.get_path(Version.PREVIEW_CENSORED), cls_id=cls_id,
+                                class_filter=self.cls[cls_id][-1], **options[cls_id]))
 
         video.censored_available = True
         return video_results
+
+    async def save_video(self, page: ft.Page, pb: ft.ProgressBar, **kwargs):
+        pb_text = pb.controls[0]
+        progress_value = pb.controls[1]
+        pb_text.value = "Saving video"
+        page.update()
+        status = save_video_with_status(*list(kwargs.values())[:3], kwargs)
+        async for p in status:
+            progress_value.value = p
+            await page.update_async()
 
     def analyze_or_from_cache(self, cls_id, media: Media, page: ft.Page = None, pb: ft.ProgressBar = None, options=None) -> list[Results]:
         if cls_id not in self.results:
@@ -109,6 +123,7 @@ class ModelManager():
             self.results[cls_id][media.id] = self.detection.process_video(media.get_path(
                 Version.PREVIEW_CENSORED), self.cls[cls_id], page=page, pb=pb, cls_id=cls_id, conf_thresh=0.25, verbose=False)
         return self.results[cls_id][media.id]
+
 
 class FileManger(dict[str, Media]):
     def __init__(self, colors: ColorPalette):
@@ -168,7 +183,7 @@ class FileManger(dict[str, Media]):
             str: returns the key where the image can be found
         """
         name, fmt = re.findall("(.*)\.(.*)$", filename)[0]
-        if not os.path.exists(self.CACHE_PATH): # check if cache folder exists
+        if not os.path.exists(self.CACHE_PATH):  # check if cache folder exists
             os.makedirs(self.CACHE_PATH)
         counter = 0
         new_folder = str(self.CACHE_PATH + name + "_{}")
@@ -179,12 +194,15 @@ class FileManger(dict[str, Media]):
         media.set_orig_fmt(fmt)
         shutil.copy(old_path, media.get_path(Version.ORIG))
         if fmt in self.IMAGE_FMTS:
-            self.__create_new_version_of_image(media.get_path(Version.ORIG), media.get_path(Version.PREVIEW), self.PREVIEW_MAX_SIZE)
-            self.__create_new_version_of_image(media.get_path(Version.ORIG), media.get_path(Version.ICON), self.ICON_MAX_SIZE)
+            self.__create_new_version_of_image(media.get_path(
+                Version.ORIG), media.get_path(Version.PREVIEW), self.PREVIEW_MAX_SIZE)
+            self.__create_new_version_of_image(media.get_path(
+                Version.ORIG), media.get_path(Version.ICON), self.ICON_MAX_SIZE)
             self.__setitem__(media.id, Image(media))
         elif fmt in self.VIDEO_FMTS:
-            #media.preview_file.fmt = media.orig_file.fmt # TODO: change this
-            self.__create_preview_and_icon_from_video(orig_path=media.get_path(Version.ORIG), preview_path=media.get_path(Version.PREVIEW), icon_path=media.get_path(Version.ICON))
+            # media.preview_file.fmt = media.orig_file.fmt # TODO: change this
+            self.__create_preview_and_icon_from_video(orig_path=media.get_path(
+                Version.ORIG), preview_path=media.get_path(Version.PREVIEW), icon_path=media.get_path(Version.ICON))
             self.__setitem__(media.id, Video(media, self.__get_aspect_ratio(media.get_path(Version.ORIG))))
         return media.id
 
@@ -192,17 +210,18 @@ class FileManger(dict[str, Media]):
         img = PIL.Image.open(orig_path)
         width, height = img.size
         if max(width, height) > max_size:
-            scale = max_size/max(width, height)
-            img = img.resize((int(width*scale), int(height*scale)))
+            scale = max_size / max(width, height)
+            img = img.resize((int(width * scale), int(height * scale)))
         img.save(new_path, optimize=True, quality=90)
 
     def create_blurred_imgs(self, id, blur_result):
         img = self.__getitem__(id)
         censored_img = PIL.Image.fromarray(blur_result)
         censored_img.save(img.get_path(Version.ORIG_CENSORED))
-        self.__create_new_version_of_image(img.get_path(Version.ORIG_CENSORED), img.get_path(Version.PREVIEW_CENSORED), self.PREVIEW_MAX_SIZE)
-        img.censored_available = True    
-    
+        self.__create_new_version_of_image(img.get_path(Version.ORIG_CENSORED),
+                                           img.get_path(Version.PREVIEW_CENSORED), self.PREVIEW_MAX_SIZE)
+        img.censored_available = True
+
     def __create_preview_and_icon_from_video(self, orig_path: str, preview_path: str, icon_path: str):
         shutil.copy(orig_path, preview_path)
         video = cv2.VideoCapture(orig_path)
@@ -211,15 +230,15 @@ class FileManger(dict[str, Media]):
         img = PIL.Image.open(icon_path)
         width, height = img.size
         if max(width, height) > self.PREVIEW_MAX_SIZE:
-            scale = self.PREVIEW_MAX_SIZE/max(width, height)
-            img = img.resize((int(width*scale), int(height*scale)))
+            scale = self.PREVIEW_MAX_SIZE / max(width, height)
+            img = img.resize((int(width * scale), int(height * scale)))
         img.save(icon_path, optimize=True, quality=90)
 
     def __get_aspect_ratio(self, path):
         video = cv2.VideoCapture(path)
         _, image = video.read()
         height, width, _ = image.shape
-        return(width/height)
+        return (width / height)
 
     def toggle_blur_orig(self):
         self.blur_orig = not self.blur_orig

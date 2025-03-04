@@ -200,7 +200,7 @@ class ModelTile(ft.ExpansionTile):
                                   on_click=delete_callback, key=name),
                 ]), bgcolor=colors.normal, border_radius=10),
             ], vertical_alignment=ft.CrossAxisAlignment.START, spacing=0), padding=ft.Padding(left=40, top=5, right=15, bottom=10))])
-        
+
 class ClassDropdown(ft.Dropdown):
     def __init__(self, cls_options: list[str], colors: ColorPalette, cls: str = ''):
         super().__init__(
