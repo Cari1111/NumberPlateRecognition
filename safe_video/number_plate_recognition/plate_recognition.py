@@ -114,7 +114,7 @@ class ObjectDetection():
                 self._class_mappings.append(self.map_classes_to_models(cls))
         return self.chain_detection(image, self._class_mappings, conf_thresh=conf_thresh, augment=augment, verbose=verbose)
 
-    def process_video(self, video_path: str, classes: str | list[str | list[str]], page: ft.Page = None, pb: ft.Column = None, cls_id = "",
+    def process_video(self, video_path: str, classes: str | list[str | list[str]], page: ft.Page = None, pb: ft.Column = None, cls_id="",
                       conf_thresh: float = 0.25, iou_threshold: float = 0.7, video_stride: int = 1,
                       enable_stream_buffer: bool = False, augment: bool = False,
                       debug: bool = False, verbose: bool = False) -> list[Results]:
@@ -124,19 +124,15 @@ class ObjectDetection():
             cv2.imshow("frame", cv2.resize(frame, (int(width / 2), int(height / 2))))
             return cv2.waitKey(1) & 0xFF == ord('q')
 
-        def progress_bar(frame_counter: int, total_frames: int):
-            print(f"Processing frame {frame_counter / total_frames}")
-
         detections_in_frames = []
         cap = cv2.VideoCapture(video_path)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frame_counter = 0
-        
+
         pb_text = pb.controls[0]
         progress_value = pb.controls[1]
         pb_text.value = f"Processing video, config {cls_id}"
-        
-        
+
         while cap.isOpened():
             success, frame = cap.read()
             if not success: break
@@ -151,7 +147,7 @@ class ObjectDetection():
             progress = (frame_counter / total_frames) * 0.5
             progress_value.value = progress
             page.update()
-            
+
             # TODO delete later is for testing
             if debug:
                 # frame = frame.copy()

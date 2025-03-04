@@ -216,7 +216,7 @@ class UI_App:
         self.tiles_censor_options = {cls: CensorOptions(page, self.colors, self.update) for cls in self.model_manager.cls.keys()}
         page.add(
             ft.Container(ft.Row([
-                ft.Container(content=ft.IconButton(ft.icons.BLUR_ON, focus_color=self.colors.dark), width=50),
+                ft.Container(content=ft.Icon(name=ft.icons.ANCHOR), width=50),
                 ft.ElevatedButton("Open file", color=self.colors.text, on_click=lambda _: self.file_picker_open.pick_files(
                     file_type=ft.FilePickerFileType.CUSTOM,
                     allowed_extensions=self.file_manager.IMAGE_FMTS + self.file_manager.VIDEO_FMTS,

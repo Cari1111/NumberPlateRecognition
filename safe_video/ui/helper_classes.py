@@ -81,31 +81,33 @@ class ModelManager():
         for cls_id in cls_ids:
             img_loaded = apply_censorship(img_loaded, self.analyze_or_from_cache(cls_id, img)[-1], **options[cls_id])
         return img_loaded
-    
-    def get_analyzed_video(self, cls_ids: list[str], video: Video, page:ft.Page, pb:ft.ProgressBar, options)-> list[Results]:
-        
+
+    def get_analyzed_video(self, cls_ids: list[str], video: Video, page: ft.Page, pb: ft.ProgressBar, options) -> list[Results]:
+
         if not video.censored_available:
             shutil.copy(video.get_path(Version.ORIG), video.get_path(Version.PREVIEW_CENSORED))
-            
+
         for cls_id in cls_ids:
             video_results: list[Results] = self.analyze_or_from_cache(cls_id, video, page, pb, options)
-        
-            save_result_as_video(self.results[cls_id][video.id], video.get_path(Version.PREVIEW_CENSORED), video.get_path(Version.PREVIEW_CENSORED),
-                    page, pb, cls_id=cls_id,
-                    class_filter=self.cls[cls_id][-1] , **options[cls_id])
-                
-        video.censored_available = True   
-        return video_results                
 
-    def analyze_or_from_cache(self, cls_id, media: Media, page:ft.Page =None, pb:ft.ProgressBar=None, options = None) -> list[Results]:
+            save_result_as_video(self.results[cls_id][video.id], video.get_path(Version.PREVIEW_CENSORED), video.get_path(Version.PREVIEW_CENSORED),
+                                 page, pb, cls_id=cls_id,
+                                 class_filter=self.cls[cls_id][-1], **options[cls_id])
+
+        video.censored_available = True
+        return video_results
+
+    def analyze_or_from_cache(self, cls_id, media: Media, page: ft.Page = None, pb: ft.ProgressBar = None, options=None) -> list[Results]:
         if cls_id not in self.results:
             self.results[cls_id] = dict()
         if media.id not in self.results[cls_id] and type(media) is Image:
             img_loaded = cv2.imread(media.get_path(Version.ORIG))
             img_loaded = img_loaded[:, :, ::-1]
-            self.results[cls_id][media.id] = self.detection.process_image(img_loaded, self.cls[cls_id], conf_thresh=0.25)
+            self.results[cls_id][media.id] = self.detection.process_image(
+                img_loaded, self.cls[cls_id], conf_thresh=0.25)
         if media.id not in self.results[cls_id] and type(media) is Video:
-            self.results[cls_id][media.id] = self.detection.process_video(media.get_path(Version.PREVIEW_CENSORED), self.cls[cls_id], page=page, pb=pb, cls_id = cls_id, conf_thresh=0.25, verbose=False)
+            self.results[cls_id][media.id] = self.detection.process_video(media.get_path(
+                Version.PREVIEW_CENSORED), self.cls[cls_id], page=page, pb=pb, cls_id=cls_id, conf_thresh=0.25, verbose=False)
         return self.results[cls_id][media.id]
 
 class FileManger(dict[str, Media]):
