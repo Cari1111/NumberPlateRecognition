@@ -114,10 +114,11 @@ class ObjectDetection():
                 self._class_mappings.append(self.map_classes_to_models(cls))
         return self.chain_detection(image, self._class_mappings, conf_thresh=conf_thresh, augment=augment, verbose=verbose)
 
-    def process_video(self, video_path: str, classes: str | list[str | list[str]], page: ft.Page = None, pb: ft.Column = None, cls_id="",
-                      conf_thresh: float = 0.25, iou_threshold: float = 0.7, video_stride: int = 1,
-                      enable_stream_buffer: bool = False, augment: bool = False,
-                      debug: bool = False, verbose: bool = False) -> list[Results]:
+    async def process_video_with_status(self, video_path: str, classes: str | list[str | list[str]],
+                                        conf_thresh: float = 0.25, iou_threshold: float = 0.7,
+                                        video_stride: int = 1, enable_stream_buffer: bool = False,
+                                        augment: bool = False, debug: bool = False,
+                                        verbose: bool = False):
         def debug_show_video(frame: ImageInput, detection) -> bool:
             height, width = frame.shape[:2]
             # frame = apply_censorship(frame, detection, action=Censor.blur)
@@ -128,10 +129,6 @@ class ObjectDetection():
         cap = cv2.VideoCapture(video_path)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frame_counter = 0
-
-        pb_text = pb.controls[0]
-        progress_value = pb.controls[1]
-        pb_text.value = f"Processing video, config {cls_id}"
 
         while cap.isOpened():
             success, frame = cap.read()
@@ -145,8 +142,7 @@ class ObjectDetection():
             detections_in_frames.append(merge_results_list(detections))
 
             progress = (frame_counter / total_frames) * 0.5
-            progress_value.value = progress
-            page.update()
+            yield progress
 
             # TODO delete later is for testing
             if debug:
@@ -157,5 +153,5 @@ class ObjectDetection():
 
         cap.release()
         if debug: cv2.destroyAllWindows()
-
-        return detections_in_frames
+        yield 1.0
+        yield detections_in_frames

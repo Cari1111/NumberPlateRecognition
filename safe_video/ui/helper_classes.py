@@ -14,7 +14,7 @@ import asyncio
 
 from .dataclasses import Image, Video, Media, FileVersion, FileVersionTemplate, ColorPalette, Version
 from .components import ModelTile
-from safe_video.number_plate_recognition import ObjectDetection, Censor, apply_censorship, merge_results_list, save_video_with_status
+from safe_video.number_plate_recognition import ObjectDetection, Censor, apply_censorship, merge_results_list, save_video_with_status, StopAsyncGenerator
 from ultralytics.engine.results import Results
 
 
@@ -93,9 +93,9 @@ class ModelManager():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             loop.run_until_complete(
-                self.save_video(page, pb,
+                self.do_video(page, pb, cls_id, "Saving", save_video_with_status, 3,
                                 results=self.results[cls_id][video.id], output_path=video.get_path(Version.PREVIEW_CENSORED),
-                                original_video_path=video.get_path(Version.PREVIEW_CENSORED), cls_id=cls_id,
+                                original_video_path=video.get_path(Version.PREVIEW_CENSORED),
                                 class_filter=self.cls[cls_id][-1], **options[cls_id]))
 
         video.censored_available = True
@@ -103,14 +103,16 @@ class ModelManager():
         shutil.copy(video.get_path(Version.PREVIEW_CENSORED), video.get_path(Version.ORIG_CENSORED))
         return video_results
 
-    async def save_video(self, page: ft.Page, pb: ft.ProgressBar, **kwargs):
+    async def do_video(self, page: ft.Page, pb: ft.ProgressBar, cls_id: str, doing: str, fun, non_kw_args: int, **kwargs):
         pb_text = pb.controls[0]
         progress_value = pb.controls[1]
-        pb_text.value = "Saving video"
+        pb_text.value = f"{doing} video, {cls_id}"
         page.update()
-        status = save_video_with_status(*list(kwargs.values())[:3], kwargs)
+        status = fun(*list(kwargs.values())[:non_kw_args], kwargs)
         last_update_time = asyncio.get_event_loop().time()
         async for progress in status:
+            if not isinstance(progress, (float, int)):
+                raise StopAsyncGenerator(progress)
             current_time = asyncio.get_event_loop().time()
             if current_time - last_update_time >= 0.1:
                 progress_value.value = progress
@@ -126,8 +128,16 @@ class ModelManager():
             self.results[cls_id][media.id] = self.detection.process_image(
                 img_loaded, self.cls[cls_id], conf_thresh=0.25)
         if media.id not in self.results[cls_id] and type(media) is Video:
-            self.results[cls_id][media.id] = self.detection.process_video(media.get_path(
-                Version.PREVIEW_CENSORED), self.cls[cls_id], page=page, pb=pb, cls_id=cls_id, conf_thresh=0.25, verbose=False)
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(
+                    self.do_video(page, pb, cls_id, "Processing", self.detection.process_video_with_status, 3,
+                                  video_path=media.get_path(Version.PREVIEW_CENSORED), classes=self.cls[cls_id],
+                                  conf_thresh=0.25, verbose=False))
+                while loop.is_running(): pass
+            except StopAsyncGenerator as v:
+                self.results[cls_id][media.id] = v.value
         return self.results[cls_id][media.id]
 
 

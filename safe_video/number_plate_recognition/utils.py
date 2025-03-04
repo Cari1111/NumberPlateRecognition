@@ -14,7 +14,6 @@ import ffmpeg
 import asyncio
 ImageInput = str | Path | int | Image.Image | list | tuple | np.ndarray | torch.Tensor
 
-
 def merge_results(result1: Results, result2: Results) -> Results:
     """
     Merges the bounding boxes of two YOLO results and also updates the class mapping.
@@ -202,3 +201,7 @@ async def save_video_with_status(results: list, output_path: str, original_video
         os.rename(temp_output_path, output_path)
 
     yield 1.0
+
+class StopAsyncGenerator(Exception):
+    def __init__(self, value):
+        self.value = value
