@@ -108,7 +108,7 @@ class ModelManager():
         progress_value = pb.controls[1]
         pb_text.value = f"{doing} video, {cls_id}"
         page.update()
-        status = fun(*list(kwargs.values())[:non_kw_args], kwargs)
+        status = fun(*list(kwargs.values())[:non_kw_args], **dict(list(kwargs.items())[non_kw_args:]))
         last_update_time = asyncio.get_event_loop().time()
         async for progress in status:
             if not isinstance(progress, (float, int)):
@@ -132,7 +132,7 @@ class ModelManager():
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 loop.run_until_complete(
-                    self.do_video(page, pb, cls_id, "Processing", self.detection.process_video_with_status, 3,
+                    self.do_video(page, pb, cls_id, "Processing", self.detection.process_video_with_status, 2,
                                   video_path=media.get_path(Version.PREVIEW_CENSORED), classes=self.cls[cls_id],
                                   conf_thresh=0.25, verbose=False))
                 while loop.is_running(): pass

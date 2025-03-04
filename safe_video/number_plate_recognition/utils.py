@@ -14,6 +14,7 @@ import ffmpeg
 import asyncio
 ImageInput = str | Path | int | Image.Image | list | tuple | np.ndarray | torch.Tensor
 
+
 def merge_results(result1: Results, result2: Results) -> Results:
     """
     Merges the bounding boxes of two YOLO results and also updates the class mapping.
@@ -144,9 +145,9 @@ def save_video(**kwargs):
     loop.run_until_complete(save_video_with_status(*list(kwargs.values())[:3], kwargs))
 
 
-async def save_video_with_status(results: list, output_path: str, original_video_path, cls_id="",
-                                 class_filter=None, conf_thresh=None, copy_audio=True,
-                                 **kwargs):
+async def save_video_with_status(results: list, output_path: str, original_video_path: str,
+                                 class_filter: list[str] | str = None, conf_thresh: float = None,
+                                 copy_audio: bool = True, **kwargs):
     cap = cv2.VideoCapture(original_video_path)
     fps = round(cap.get(cv2.CAP_PROP_FPS))
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -169,8 +170,7 @@ async def save_video_with_status(results: list, output_path: str, original_video
         detection = filter_results(detection, class_filter, conf_thresh)
         frame = apply_censorship(frame, detection, **kwargs)
 
-        progress = 0.5 + (i / total_frames) * 0.5
-        yield progress
+        yield 0.5 + (i / total_frames) * 0.5
 
         video_writer.write(frame)
     video_writer.release()
@@ -201,6 +201,7 @@ async def save_video_with_status(results: list, output_path: str, original_video
         os.rename(temp_output_path, output_path)
 
     yield 1.0
+
 
 class StopAsyncGenerator(Exception):
     def __init__(self, value):
