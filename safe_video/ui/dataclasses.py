@@ -72,6 +72,7 @@ class Video(Media):
         self.aspect_ratio: float = aspect_ratio
         self.position: float = 0
         super().__init__(*media.__dict__.values())
+        self.files[Version.PREVIEW_CENSORED].fmt = 'mp4'
 
 
 @dataclass

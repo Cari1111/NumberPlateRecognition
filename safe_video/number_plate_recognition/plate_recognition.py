@@ -7,6 +7,7 @@ from ultralytics.engine.results import Results
 import numpy as np
 import torch
 import warnings
+import flet as ft
 
 
 class ObjectDetection():
@@ -113,18 +114,25 @@ class ObjectDetection():
                 self._class_mappings.append(self.map_classes_to_models(cls))
         return self.chain_detection(image, self._class_mappings, conf_thresh=conf_thresh, augment=augment, verbose=verbose)
 
-    def process_video(self, video_path: str, classes: str | list[str | list[str]],
+    def process_video(self, video_path: str, classes: str | list[str | list[str]], page: ft.Page = None, pb: ft.Column = None, cls_id="",
                       conf_thresh: float = 0.25, iou_threshold: float = 0.7, video_stride: int = 1,
                       enable_stream_buffer: bool = False, augment: bool = False,
-                      debug: bool = False, verbose: bool = False) -> list[tuple[int, Results]]:
-        def debug_show_video(frame: ImageInput) -> bool:
+                      debug: bool = False, verbose: bool = False) -> list[Results]:
+        def debug_show_video(frame: ImageInput, detection) -> bool:
             height, width = frame.shape[:2]
+            # frame = apply_censorship(frame, detection, action=Censor.blur)
             cv2.imshow("frame", cv2.resize(frame, (int(width / 2), int(height / 2))))
             return cv2.waitKey(1) & 0xFF == ord('q')
 
         detections_in_frames = []
         cap = cv2.VideoCapture(video_path)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frame_counter = 0
+
+        pb_text = pb.controls[0]
+        progress_value = pb.controls[1]
+        pb_text.value = f"Processing video, config {cls_id}"
+
         while cap.isOpened():
             success, frame = cap.read()
             if not success: break
@@ -134,12 +142,17 @@ class ObjectDetection():
 
             detections = self.process_image(frame, classes, frame_counter == 0,
                                             conf_thresh=conf_thresh, augment=augment, verbose=verbose)
-            detections_in_frames.append((frame_counter, merge_results_list(detections)))
+            detections_in_frames.append(merge_results_list(detections))
+
+            progress = (frame_counter / total_frames) * 0.5
+            progress_value.value = progress
+            page.update()
 
             # TODO delete later is for testing
             if debug:
+                # frame = frame.copy()
                 frame = merge_results_list(detections).plot()
-                if debug_show_video(frame): break
+                if debug_show_video(frame, detections[-1]): break
             frame_counter += 1
 
         cap.release()

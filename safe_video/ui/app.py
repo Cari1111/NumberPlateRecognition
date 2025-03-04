@@ -1,6 +1,6 @@
 import flet as ft
 from safe_video.number_plate_recognition import ObjectDetection
-from .dataclasses import Video, Image, ColorPalette, Version
+from .dataclasses import Video, Image, Media, ColorPalette, Version
 from .components import PreviewImage, AlertSaveWindow, VideoPlayer, ModelTile, AddClassWindow, CensorOptions, SettingsWindow
 from .helper_classes import FileManger, ModelManager
 from flet.matplotlib_chart import MatplotlibChart
@@ -66,11 +66,7 @@ class UI_App:
             self.selected_media = id
             media = self.file_manager[id]
             media.selected(True)
-            if type(media) is Image:
-                self.update_media_container_with_img()
-            if type(media) is Video:
-                self.media_container.content = VideoPlayer(media.get_path_preview(
-                    self.show_censored), media.aspect_ratio, colors=self.colors)
+            self.update_media_container_with_img()
                 # TODO: set player to current position
         self.update()
 
@@ -114,29 +110,44 @@ class UI_App:
         except Exception as e:
             self.error_popup(str(e))
 
-    def blur_img(self, img: Image, cls_ids: list[str]):
-        try:
-            options = {id: self.tiles_censor_options[id].get_option() for id in cls_ids}
-            censored_img = self.model_manager.get_blurred_image(cls_ids, img, options)
-            self.file_manager.create_blurred_imgs(img.id, censored_img)
-        except Exception as e:
-            self.error_popup(str(e))
-
     def error_popup(self, error_msg: str):
         self.page.open(ft.SnackBar(ft.Text(error_msg, color="white"), bgcolor=ft.colors.RED_500))
         self.update()
 
+    def display_progress_bar(self, text:str):
+        progress_text = ft.Text(text)
+        pb = ft.ProgressBar(width=500)
+        pb_container = ft.Column([progress_text, pb], alignment=ft.alignment.center)
+        self.media_container.content = ft.Stack(
+            [self.media_container.content, pb_container],
+            alignment=ft.alignment.center            
+        )
+        self.page.update()
+        
+        return pb_container
+
+
+    
+    def blur_media(self, media: Media, cls_ids: list[str]):
+        try:
+            options = {id: self.tiles_censor_options[id].get_option() for id in cls_ids}
+            if type(media) is Image:
+                censored_img = self.model_manager.get_blurred_image(cls_ids, media, options)
+                self.file_manager.create_blurred_imgs(media.id, censored_img)
+            if type(media) is Video:
+                detections = self.model_manager.get_analyzed_video(cls_ids, media, self.page, self.display_progress_bar("..."), options)
+        except Exception as e:
+            self.error_popup(str(e))  
     def blur_current_img_callback(self, cls_id):
-        self.blur_img(self.file_manager[self.selected_media], [cls_id])
+        self.blur_media(self.file_manager[self.selected_media], [cls_id])
         self.update_media_container_with_img()
 
     def blur_all_callback(self):
-        for img in self.file_manager.values():
-            if type(img) is not Image: continue
-            self.blur_img(img, [cls_id for cls_id in self.model_manager.cls.keys()
+        for media in self.file_manager.values():
+            self.blur_media(media, [cls_id for cls_id in self.model_manager.cls.keys()
                           if self.model_manager.active[cls_id]])
         self.update_media_container_with_img()
-
+        
     def toggle_blur_orig(self, info):
         self.show_censored = not self.show_censored
         self.update_media_container_with_img()
@@ -205,13 +216,26 @@ class UI_App:
                 blur_callback=lambda info: self.blur_current_img_callback(info.control.key),
                 edit_callback=edit_callback,
                 delete_callback=delete_callback,
+                blur_buttons_status=self.blur_buttons_status_callback(),
                 ) for c in self.model_manager.cls.keys()]
         self.page.update()
 
+    def blur_buttons_status_callback(self) -> bool:
+        if self.selected_media is None: return True
+        media = self.file_manager[self.selected_media]
+        if type(media) is Video: return True
+        return False
+    
     def update_media_container_with_img(self):
-        with open(self.file_manager[self.selected_media].get_path_preview(self.show_censored), "rb") as img_file:
-            encoded_string = base64.b64encode(img_file.read()).decode("utf-8")
-        self.media_container.content = ft.Image(src_base64=encoded_string, fit=ft.ImageFit.CONTAIN)
+        if self.selected_media is not None: 
+            media = self.file_manager[self.selected_media]
+            if type(media) is Image:
+                with open(self.file_manager[self.selected_media].get_path_preview(self.show_censored), "rb") as img_file:
+                    encoded_string = base64.b64encode(img_file.read()).decode("utf-8")
+                self.media_container.content = ft.Image(src_base64=encoded_string, fit=ft.ImageFit.CONTAIN)
+            if type(media) is Video:
+                self.media_container.content = VideoPlayer(media.get_path_preview(
+                    self.show_censored), media.aspect_ratio, colors=self.colors)
         self.update()
 
     def build_page(self, page: ft.Page):
@@ -225,7 +249,7 @@ class UI_App:
         self.tiles_censor_options = {cls: CensorOptions(page, self.colors, self.update) for cls in self.model_manager.cls.keys()}
         page.add(
             ft.Container(ft.Row([
-                ft.Container(content=ft.IconButton(ft.icons.BLUR_ON, focus_color=self.colors.dark), width=50),
+                ft.Container(content=ft.Icon(name=ft.icons.ANCHOR), width=50),
                 ft.ElevatedButton("Open file", color=self.colors.text, on_click=lambda _: self.file_picker_open.pick_files(
                     file_type=ft.FilePickerFileType.CUSTOM,
                     allowed_extensions=self.file_manager.IMAGE_FMTS + self.file_manager.VIDEO_FMTS,
@@ -271,3 +295,4 @@ class UI_App:
 
     def run(self):
         ft.app(target=self.build_page)
+        

@@ -86,11 +86,13 @@ class ModelTileTextStyle(ft.TextStyle):
     def __init__(self):
         super().__init__(weight=ft.FontWeight.W_500)
 class ModelTileButton(ft.OutlinedButton):
-    def __init__(self, colors: ColorPalette, text, on_click, key=None):
+    def __init__(self, colors: ColorPalette, text, on_click, key=None, disabled=False):
         super().__init__(
-            content=ft.Text(text, color=colors.text, style=ModelTileTextStyle()),
+            content=ft.Text(text, color=colors.text if not disabled else colors.dark, style=ModelTileTextStyle()),
             on_click=on_click,
-            style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10), side=ft.BorderSide(1, colors.text), padding=10),
+            style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10), side={ft.ControlState.DEFAULT: ft.BorderSide(1, colors.text), 
+                                                                                   ft.ControlState.DISABLED: ft.BorderSide(1, colors.dark)}, padding=10),
+            disabled=disabled,
             key=key),
 class ModelTileIconButton(ft.IconButton):
     def __init__(self, colors: ColorPalette, icon, on_click, icon_color=None):
@@ -172,7 +174,7 @@ class CensorOptions(ft.Row):
 
 
 class ModelTile(ft.ExpansionTile):
-    def __init__(self, name, open_closed: dict, censor_options: dict[str, CensorOptions], active: dict, colors: ColorPalette, active_callback, boundingBox_callback, blur_callback, edit_callback, delete_callback):
+    def __init__(self, name, open_closed: dict, censor_options: dict[str, CensorOptions], active: dict, colors: ColorPalette, active_callback, boundingBox_callback, blur_callback, edit_callback, delete_callback, blur_buttons_status):  
         def open_close_callback(info):
             open_closed[info.control.key] = info.data
         super().__init__(
@@ -188,7 +190,7 @@ class ModelTile(ft.ExpansionTile):
             controls=[ft.Container(ft.Row([
                 ft.Container(ft.Column([
                     censor_options[name],
-                    ModelTileButton(colors, "show bounding boxes", on_click=boundingBox_callback, key=name),
+                    ModelTileButton(colors, "show bounding boxes", on_click=boundingBox_callback, key=name, disabled=blur_buttons_status), 
                     ModelTileButton(colors, "censor", on_click=blur_callback, key=name),
                 ])),
                 ft.Column([], expand=True),
@@ -198,8 +200,7 @@ class ModelTile(ft.ExpansionTile):
                                   on_click=delete_callback, key=name),
                 ]), bgcolor=colors.normal, border_radius=10),
             ], vertical_alignment=ft.CrossAxisAlignment.START, spacing=0), padding=ft.Padding(left=40, top=5, right=15, bottom=10))])
-
-
+        
 class ClassDropdown(ft.Dropdown):
     def __init__(self, cls_options: list[str], colors: ColorPalette, cls: str = ''):
         super().__init__(
