@@ -4,7 +4,6 @@ from PIL import Image, ImageColor
 from pathlib import Path
 from typing import Callable
 
-from matplotlib import pyplot as plt
 import numpy as np
 import cv2
 import torch
@@ -175,5 +174,3 @@ def save_result_as_video(results: list[tuple[int, Results]], output_path: str, o
             Path(temp_output_path).unlink(missing_ok=True)
     else:
         Path(temp_output_path).replace(output_path)
-        
-    
